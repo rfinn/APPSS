@@ -25,6 +25,10 @@ from astropy.coordinates import SkyCoord
 
 plt.rcParams.update({'font.size': 14})
 
+import system
+homedir = os.getenv('HOME')
+sys.path.append(homedir+'/github/halphagui/testing/')
+from join_catalogs import make_new_cats
 
 ##### TABLES
 tablepath = '/Users/rfinn/github/APPSS/tables/'
@@ -140,52 +144,57 @@ class matchedcats():
     a100 - NSA
     a100 - S4G
     '''
+    def __init__(self,a100sdss=None, a100nsa=None,a100gsw=None,a100s4g=None):
+        self.a100sdss = fits.getdata(a100sdss)
+        self.a100nsa = fits.getdata(a100nsa)
+        self.a100gsw = fits.getdata(a100gsw)
+        self.a100s4g = fits.getdata(a100s4g)
     def figure1(self):
         plt.figure(figsize=(10,3))
         plt.subplots_adjust(wspace=.0)
         # 
         plt.subplot(1,3,1)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['absMag_i'][photflag], a100sdss['gmi_no_int'][photflag], a100sdss['expAB_g'][photflag],'${uncorrected}$')
+        photflag = self.a100sdss['photFlag_gi'] == 1
+        colormag(self.a100sdss['absMag_i'][photflag], self.a100sdss['gmi_no_int'][photflag], self.a100sdss['expAB_g'][photflag],'${uncorrected}$')
         plt.ylabel('$g-i$',fontsize=16)
         plt.legend(loc='lower left',markerscale=6)
         #plt.gca()
         plt.subplot(1,3,2)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['I_Shao'][photflag], a100sdss['gmi_Shao'][photflag],
-        a100sdss['expAB_g'][photflag],'${Shao\ et\ al. \ 2007}$')
+        photflag = self.a100sdss['photFlag_gi'] == 1
+        colormag(self.a100sdss['I_Shao'][photflag], self.a100sdss['gmi_Shao'][photflag],
+        self.a100sdss['expAB_g'][photflag],'${Shao\ et\ al. \ 2007}$')
         plt.yticks(())
         ax = plt.gca()
 
         plt.text(.5,-.25,'$M_i$',fontsize=16, transform = ax.transAxes)
 
         plt.subplot(1,3,3)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['I_corrected'][photflag], a100sdss['gmi_corrected'][photflag],
-        a100sdss['expAB_g'][photflag],'${this \ work}$')
+        photflag = self.a100sdss['photFlag_gi'] == 1
+        colormag(self.a100sdss['I_corrected'][photflag], self.a100sdss['gmi_corrected'][photflag],
+        self.a100sdss['expAB_g'][photflag],'${this \ work}$')
         plt.yticks(())
 
         plt.savefig('Figure1.pdf')
         
     def figure2a(self):
         # correct to H0=70
-        x = np.log10(a100nsa.SERSIC_MASS/.7**2)
-        y = ((a100nsa.SERSIC_ABSMAG[:,3] - a100nsa.EXTINCTION[:,3]) - (a100nsa.SERSIC_ABSMAG[:,5] - a100nsa.EXTINCTION[:,5]))
-        nsa_mass_flag =  ( a100nsa.SERSIC_MASS > 1000.) 
+        x = np.log10(self.a100nsa.SERSIC_MASS/.7**2)
+        y = ((self.a100nsa.SERSIC_ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.SERSIC_ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
+        nsa_mass_flag =  ( self.a100nsa.SERSIC_MASS > 1000.) 
         # require phot error < 0.05 for abs mag
         ivar = 1./.05**2
         nsa_phot_flag = np.ones(len(nsa_mass_flag),'bool')
         for i in np.arange(3,6):
-            nsa_phot_flag = nsa_phot_flag & (a100nsa.SERSIC_AMIVAR[:,i] > (1./.05**2))
+            nsa_phot_flag = nsa_phot_flag & (self.a100nsa.SERSIC_AMIVAR[:,i] > (1./.05**2))
     
-        # flag1 = (a100nsa.matchFlag == 3) & (a100nsa.photFlag_gi == 1)
+        # flag1 = (self.a100nsa.matchFlag == 3) & (self.a100nsa.photFlag_gi == 1)
         nsa_flag = nsa_mass_flag & nsa_phot_flag
-        flag1 = (a100nsa.matchFlag == 3) & nsa_flag #& photflagnsa  & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
+        flag1 = (self.a100nsa.a100Flag & self.a100nsa.nsaFlag) & nsa_flag #& photflagnsa  & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#
+        # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = x[flag1]
         y1 = y[flag1]
         
-        flag2 = (a100nsa.matchFlag == 2)& nsa_flag #& (logstellarmassTaylor_nsa > 7) & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#& (a100nsa.photFlag_gi == 1) 
+        flag2 = (~self.a100nsa.a100Flag & self.a100nsa.nsaFlag)& nsa_flag #& (logstellarmassTaylor_nsa > 7) & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#& (self.a100nsa.photFlag_gi == 1) 
         x2 = x[flag2]
         y2 = y[flag2]
         print(len(x2), sum(flag2))
@@ -198,30 +207,30 @@ class matchedcats():
                   xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2='r')
 
     def figure2b(self):
-        flag1 = (a100nsa.matchFlag == 3) & (a100nsa.photFlag_gi == 1)
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
-        x1 = a100nsa.LogMstarTaylor_1[flag1]
-        y1 = a100nsa.gmi_corrected[flag1]
+        flag1 = (self.a100nsa.a100Flag & self.a100nsa.nsaFlag) & (self.a100nsa.photFlag_gi == 1)
+        # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
+        x1 = self.a100nsa.logMstarTaylor[flag1]
+        y1 = self.a100nsa.gmi_corrected[flag1]
 
-        flag2 = (a100nsa.matchFlag == 1) & (a100nsa.photFlag_gi == 1) 
-        x2 = a100nsa.LogMstarTaylor_1[flag2]
-        y2 = a100nsa.gmi_corrected[flag2]
+        flag2 = (self.a100nsa.a100Flag & ~self.a100nsa.nsaFlag) & (self.a100nsa.photFlag_gi == 1) 
+        x2 = self.a100nsa.logMstarTaylor[flag2]
+        y2 = self.a100nsa.gmi_corrected[flag2]
         print(len(x2), sum(flag2))
         colormass(x1,y1, x2, y2, 'A100+NSA', 'A100 only', 'a100-nsa-color-mass-1.pdf', \
                   hexbinflag=True, contourflag=False,color2='b',xmin=5., ymin=-.5,xmax=12)
     def figa_s4g(self):
-        x = a100s4g.mstar
-        y = a100s4g.bvtc
+        x = self.a100s4g.mstar
+        y = self.a100s4g.bvtc
         #x = a100s4g.mabs
         #y = fullsdss['g']-fullsdss['r']
         #y = a100s4g.mag1 - a100s4g.mag2
-        photflag = (fullsdss['err_g']< .05) & (fullsdss['err_r']< .05)& (fullsdss['err_i']< .05)
-        flag1 = (a100s4g.matchFlag == 3) & photflag
+        photflag = self.a100s4g.photFlag_gi == 1
+        flag1 = (self.a100s4g.a100Flag & self.a100.s4gFlag) & photflag
         print('number with both = ',sum(flag1))
         x1 = x[flag1]
         y1 = y[flag1]
 
-        flag2 = (a100s4g.matchFlag == 2) & photflag
+        flag2 = (~self.a100s4g.a100Flag & self.a100.s4gFlag) & photflag
         print('number with S4G only = ',sum(flag2))
         x2 = x[flag2]
         y2 = y[flag2]
@@ -234,15 +243,15 @@ class matchedcats():
                   xmin=5, ymin=-1,xmax=13,ymax=3,nhistbin=15,alphagray=.5,\
                   xlabel='$S4G \ M_{ABS}$', ylabel='$ Leda \ (B-V)$', color2='r')
     def figb_s4g(self):
-        x = a100s4g.LogMstarTaylor
-        y = a100s4g.gmi_corrected
+        x = self.a100s4g.logMstarTaylor
+        y = self.a100s4g.gmi_corrected
 
-        flag1 = (a100s4g.matchFlag == 3) & (a100s4g.photFlag_gi == 1)
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
+        flag1 = (self.a100s4g.a100Flag & self.a100.s4gFlag) & (self.a100s4g.photFlag_gi == 1)
+        # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = x[flag1]
         y1 = y[flag1]
 
-        flag2 = (a100s4g.matchFlag == 1)& (a100s4g.photFlag_gi == 1)
+        flag2 = (self.a100s4g.a100Flag & ~self.a100.s4gFlag)& (a100s4g.photFlag_gi == 1)
         x2 = x[flag2]
         y2 = y[flag2]
         #print(len(x2), sum(flag2))
@@ -253,173 +262,16 @@ class matchedcats():
                   hexbinflag=False,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5., ymin=-.5,xmax=12,nhistbin=20,alphagray=.5,color2='b')
 
-    
-class a100():
-    '''
-    This is redoing the matching and calculations myself
-
-    '''
-    def __init__(self):
-        # read in a100
-
-        # read in sdss phot
-
-        # match phot to a100
-
-    def match2_nsa(self):
-        # read in nsa
-
-        # join tables
-
-        # cut to overlap region
-    
-    def get_absmag(self):
-        # calculate absolute mag from apparent mag and redshif
-        pass
-
-    def int_extinction(self):
-        # calculate internal extinction
-        # calculate extinction like we do in the paper
-        # - for log(a/b), use SERSIC_BA (compare with PETRO_BA90, we are using PETRO to measure the mag flux)
-
-        ba = a100nsa.expAB_r
-
-        gamma_g = np.zeros(len(a100nsa.ra_1))
-        # only apply correction for bright galaxies
-        mag_flag_g = a100nsa.absMag_g <= -17.
-        # equation from paper
-        gamma_g[mag_flag_g] = -0.35*a100nsa.absMag_g[mag_flag_g] - 5.95
-        extinction_g = gamma_g*np.log10(1./ba) 
-        # correct the absolute mag for internal AND galactic extinction
-        gmag_corr = a100nsa.modelMag_g + extinction_g - a100nsa.mw_extinction_g
-
-
-        gamma_i = np.zeros(len(a100nsa.ra_1))
-        mag_flag_i = a100nsa.absMag_i <= -17.
-        # equation from paper
-        gamma_i[mag_flag_i] = -0.15*a100nsa.absMag_i[mag_flag_i] - 2.55
-        extinction_i = gamma_g*np.log10(1./ba) 
-        # correct the absolute mag for internal AND galactic extinction
-        self.imag_corr = a100nsa.modelMag_i + extinction_i - a100nsa.mw_extinction_i
-
-        self.gmi_corr = gmag_corr - imag_corr
-    def get_mstar(self):
-        # calculate stellar mass
-
-        pass
-        h = 0.7
-        self.logstellarmassTaylor=1.15+0.70*(gmi_corr) -0.4*(a100nsa.absMag_i+ 5.*np.log10(h))
-        # -0.68 + .7*gmi_cor + (Mi-4.56)/-2.5
-class matchedcats():
-    def figure1(self):
-        plt.figure(figsize=(10,3))
-        plt.subplots_adjust(wspace=.0)
-        # 
-        plt.subplot(1,3,1)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['absMag_i'][photflag], a100sdss['gmi_no_int'][photflag], a100sdss['expAB_g'][photflag],'${uncorrected}$')
-        plt.ylabel('$g-i$',fontsize=16)
-        plt.legend(loc='lower left',markerscale=6)
-        #plt.gca()
-        plt.subplot(1,3,2)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['I_Shao'][photflag], a100sdss['gmi_Shao'][photflag],
-        a100sdss['expAB_g'][photflag],'${Shao\ et\ al. \ 2007}$')
-        plt.yticks(())
-        ax = plt.gca()
-
-        plt.text(.5,-.25,'$M_i$',fontsize=16, transform = ax.transAxes)
-
-        plt.subplot(1,3,3)
-        photflag = a100sdss['photFlag_gi'] == 1
-        colormag(a100sdss['I_corrected'][photflag], a100sdss['gmi_corrected'][photflag],
-        a100sdss['expAB_g'][photflag],'${this \ work}$')
-        plt.yticks(())
-
-        plt.savefig('Figure1.pdf')
         
-    def figure2a(self):
-        # correct to H0=70
-        x = np.log10(a100nsa.SERSIC_MASS/.7**2)
-        y = ((a100nsa.SERSIC_ABSMAG[:,3] - a100nsa.EXTINCTION[:,3]) - (a100nsa.SERSIC_ABSMAG[:,5] - a100nsa.EXTINCTION[:,5]))
-        nsa_mass_flag =  ( a100nsa.SERSIC_MASS > 1000.) 
-        # require phot error < 0.05 for abs mag
-        ivar = 1./.05**2
-        nsa_phot_flag = np.ones(len(nsa_mass_flag),'bool')
-        for i in np.arange(3,6):
-            nsa_phot_flag = nsa_phot_flag & (a100nsa.SERSIC_AMIVAR[:,i] > (1./.05**2))
     
-        # flag1 = (a100nsa.matchFlag == 3) & (a100nsa.photFlag_gi == 1)
-        nsa_flag = nsa_mass_flag & nsa_phot_flag
-        flag1 = (a100nsa.matchFlag == 3) & nsa_flag #& photflagnsa  & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
-        x1 = x[flag1]
-        y1 = y[flag1]
-        
-        flag2 = (a100nsa.matchFlag == 2)& nsa_flag #& (logstellarmassTaylor_nsa > 7) & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#& (a100nsa.photFlag_gi == 1) 
-        x2 = x[flag2]
-        y2 = y[flag2]
-        print(len(x2), sum(flag2))
-        contour_levels = np.logspace(.7,5.5,15)
-        contour_levels = np.linspace(10,500,12)
-        print(contour_levels)
-        colormass(x1,y1, x2, y2, 'A100+NSA', 'NSA only', 'a100-nsa-color-mass-2.pdf', \
-                  hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
-                  xmin=5., ymin=-.5,xmax=12, \
-                  xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2='r')
 
-    def figure2b(self):
-        flag1 = (a100nsa.matchFlag == 3) & (a100nsa.photFlag_gi == 1)
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
-        x1 = a100nsa.LogMstarTaylor_1[flag1]
-        y1 = a100nsa.gmi_corrected[flag1]
 
-        flag2 = (a100nsa.matchFlag == 1) & (a100nsa.photFlag_gi == 1) 
-        x2 = a100nsa.LogMstarTaylor_1[flag2]
-        y2 = a100nsa.gmi_corrected[flag2]
-        print(len(x2), sum(flag2))
-        colormass(x1,y1, x2, y2, 'A100+NSA', 'A100 only', 'a100-nsa-color-mass-1.pdf', \
-                  hexbinflag=True, contourflag=False,color2='b',xmin=5., ymin=-.5,xmax=12)
-    def figa_s4g(self):
-        x = a100s4g.mstar
-        y = a100s4g.bvtc
-        #x = a100s4g.mabs
-        #y = fullsdss['g']-fullsdss['r']
-        #y = a100s4g.mag1 - a100s4g.mag2
-        photflag = (fullsdss['err_g']< .05) & (fullsdss['err_r']< .05)& (fullsdss['err_i']< .05)
-        flag1 = (a100s4g.matchFlag == 3) & photflag
-        print('number with both = ',sum(flag1))
-        x1 = x[flag1]
-        y1 = y[flag1]
-
-        flag2 = (a100s4g.matchFlag == 2) & photflag
-        print('number with S4G only = ',sum(flag2))
-        x2 = x[flag2]
-        y2 = y[flag2]
-        print(len(x2), sum(flag2))
-        #contour_levels = np.logspace(.7,5.5,15)
-        contour_levels = np.linspace(1,100,12)
-        print(contour_levels)
-        colormass(x1,y1, x2, y2, 'A100+S4G', 'S4G only', 'a100-s4g-color-mass-1.pdf', \
-                  hexbinflag=False,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
-                  xmin=5, ymin=-1,xmax=13,ymax=3,nhistbin=15,alphagray=.5,\
-                  xlabel='$S4G \ M_{ABS}$', ylabel='$ Leda \ (B-V)$', color2='r')
-    def figb_s4g(self):
-        x = a100s4g.LogMstarTaylor
-        y = a100s4g.gmi_corrected
-
-        flag1 = (a100s4g.matchFlag == 3) & (a100s4g.photFlag_gi == 1)
-        # x1 = a100nsa.LogMstarTaylor_2[flag1]
-        x1 = x[flag1]
-        y1 = y[flag1]
-
-        flag2 = (a100s4g.matchFlag == 1)& (a100s4g.photFlag_gi == 1)
-        x2 = x[flag2]
-        y2 = y[flag2]
-        #print(len(x2), sum(flag2))
-        #contour_levels = np.logspace(.7,5.5,15)
-        contour_levels = np.linspace(1,100,12)
-        print(contour_levels)
-        colormass(x1,y1, x2, y2, 'A100+S4G', 'A100 only', 'a100-s4g-color-mass-2.pdf', \
-                  hexbinflag=False,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
-                  xmin=5., ymin=-.5,xmax=12,nhistbin=20,alphagray=.5,color2='b')
+if __name__ == '__main__':
+    homedir = os.getenv('HOME')
+    table_path = homedir+'/github/appss/tables/'
+    a100 = table_path+'a100-sdss.fits'
+    a100nsa = table_path+'a100-nsa.fits'
+    a100gsw = table_path+'a100-gswlcA2.fits'
+    a100s4g = table_path+'a100-s4g.fits'
+    p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
+    p.
