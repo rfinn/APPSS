@@ -12,9 +12,8 @@ generate plots for paper
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import pyplot as plt
-%matplotlib inline
 
-import numpy as np
+
 import os
 from astropy.io import fits
 from astropy.io import ascii
@@ -25,39 +24,8 @@ from astropy.coordinates import SkyCoord
 
 plt.rcParams.update({'font.size': 14})
 
-import system
-homedir = os.getenv('HOME')
-sys.path.append(homedir+'/github/halphagui/testing/')
-from join_catalogs import make_new_cats
+import sys
 
-##### TABLES
-tablepath = '/Users/rfinn/github/APPSS/tables/'
-
-
-# Mary's matched tables
-a100sdss = ascii.read('tables/a100-SDSS-catalog-mco190725.csv')
-a100s4g = fits.getdata('tables/a100-s4g_overlapregion-mco.fits',1)
-a100nsa = fits.getdata('tables/a100-nsa_overlapregion-mco.fits',1)
-
-
-# galaxy zoo 2
-gz2file = tablepath+'gz2_hart16.fits.gz'
-
-# S4G
-s4gfile = tablepath+'spitzer.s4gcat_14584.fits'
-
-# SDSS photometry for alfalfa 100 galaxies
-sdssfile = tablepath+'a100.code12.SDSSvalues190516.fits'
-
-# NSA
-nsafile = os.getenv('HOME')+'/research/NSA/nsa_v0_1_2.fits'
-
-# gswlc
-nsafile = os.getenv('HOME')+'/research/GSWLC/hlsp_gswlc_galex_sdss_wise_multi_x1_multi_v1_cat.fits'
-
-
-overlapflag = (gz2.ra > 120) & (gz2.ra < 240) & (gz2.dec > 0) & (gz2.dec < 36)
-gz2 = gz2[overlapflag]
 
 
 def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False, \
@@ -170,7 +138,7 @@ class matchedcats():
 
         plt.subplot(1,3,3)
         photflag = self.a100sdss['photFlag_gi'] == 1
-        colormag(self.a100sdss['I_corrected'][photflag], self.a100sdss['gmi_corrected'][photflag],
+        colormag(self.a100sdss['absMag_i_corr'][photflag], self.a100sdss['gmi_corr'][photflag],
         self.a100sdss['expAB_g'][photflag],'${this \ work}$')
         plt.yticks(())
 
@@ -274,4 +242,4 @@ if __name__ == '__main__':
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'
     p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
-    p.
+    p.figure1()

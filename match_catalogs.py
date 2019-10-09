@@ -10,7 +10,7 @@ import sys
 from astropy.cosmology import WMAP9 as cosmo
 
 homedir = os.getenv('HOME')
-sys.path.append(homedir+'/github/halphagui/testing/')
+sys.path.append(homedir+'/github/appss/')
 from join_catalogs import make_new_cats, join_cats
 
 import time
@@ -43,9 +43,9 @@ class a100:
     def calc_distance_quantities(self):
         #redshift = self.a100sdss['Vhelio']/c.c.to('km/s').value
         #dL = Column(cosmo.luminosity_distance(redshift),name='distance',unit=u.Mpc)
-        self.absMag_g =self.a100sdss['cModelMag_g'] - 5*np.log10(self.a100sdss['Dist']*1.e6) - self.a100sdss['extinction_g']
+        self.absMag_g =self.a100sdss['cModelMag_g']+ 5+ - 5*np.log10(self.a100sdss['Dist']*1.e6) - self.a100sdss['extinction_g']
         c1 = MaskedColumn(self.absMag_g,name='absMag_g',unit=u.mag)
-        self.absMag_i = self.a100sdss['cModelMag_i'] - 5*np.log10(self.a100sdss['Dist']*1.e6) - self.a100sdss['extinction_i']
+        self.absMag_i = self.a100sdss['cModelMag_i']+ 5+ - 5*np.log10(self.a100sdss['Dist']*1.e6) - self.a100sdss['extinction_i']
         c2 = MaskedColumn(self.absMag_i,name='absMag_i',unit=u.mag)
         self.a100sdss.add_columns([c1,c2])
 
@@ -73,9 +73,19 @@ class a100:
         gmi_corr = gmag_corr - imag_corr
 
         # calculate abs mag in g and i, corrected for MW and internal extinction
-        absMag_i_corr = imag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6)
-        absMag_g_corr = gmag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6)
+        absMag_i_corr = imag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6) +5
+        absMag_g_corr = gmag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6) +5
 
+        # calculate Shao values
+        G_Shao = self.a100sdss['absMag_g']  -(-1.68*np.log10(ba)) 
+        I_Shao = self.a100sdss['absMag_i']  -(-1.08*np.log10(ba))
+        gmi_Shao = self.a100sdss['modelMag_g'] -self.a100sdss['extinction_g']+ 1.68*np.log10(ba) - (self.a100sdss['modelMag_i'] -self.a100sdss['extinction_i']+1.08*np.log10(ba))
+
+        #G_halfShao = absMag_i>-20.5? absMag_g : G_Shao
+        #I_halfShao = absMag_i>-20.5? absMag_i : I_Shao
+        #Gmi_halfShao = absMag_i>-20.5? (modelMag_g)-(modelMag_i) : gmi_Shao
+
+        gmi_no_int = self.a100sdss['absMag_g'] - self.a100sdss['absMag_i']
         # append corrected mag and gmi color to table
 
         c1 = MaskedColumn(gmag_corr, name='gmag_corr',unit = u.mag)
@@ -83,9 +93,16 @@ class a100:
         c3 = MaskedColumn(gmi_corr, name='gmi_corr',unit = u.mag)
         c4 = MaskedColumn(absMag_g_corr,name='absMag_g_corr',unit=u.mag)
         c5 = MaskedColumn(absMag_i_corr,name='absMag_i_corr',unit=u.mag)
-        self.a100sdss.add_columns([c1,c2,c3,c4,c5])
+        c6 = MaskedColumn(gmi_no_int,name='gmi_no_int',unit=u.mag)
+        c7 = MaskedColumn(G_Shao,name='G_Shao',unit=u.mag)
+        c8 = MaskedColumn(I_Shao,name='I_Shao',unit=u.mag)
+        c9 = MaskedColumn(gmi_Shao,name='gmi_Shao',unit=u.mag)
+        #c10 = MaskedColumn(absMag_i_corr,name='absMag_i_corr',unit=u.mag)
         
+        self.a100sdss.add_columns([c1,c2,c3,c4,c5,c6,c7,c8,c9])
         
+
+
     def define_photflag(self):
         # define flag to denote objects with good photometry
         # add photflag column to a100sdss
@@ -311,7 +328,7 @@ class match2a100sdss():
         pass
 
 if __name__ == '__main__':
-    make_a100sdss = False
+    make_a100sdss = True
     if make_a100sdss:
         a100_file = homedir+'/github/APPSS/tables/a100.HIparms.191001.csv'
         # read in sdss phot, line-matched catalogs
