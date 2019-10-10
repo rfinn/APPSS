@@ -114,6 +114,7 @@ class matchedcats():
     '''
     def __init__(self,a100sdss=None, a100nsa=None,a100gsw=None,a100s4g=None):
         self.a100sdss = fits.getdata(a100sdss)
+
         self.a100nsa = fits.getdata(a100nsa)
         self.a100gsw = fits.getdata(a100gsw)
         self.a100s4g = fits.getdata(a100s4g)
@@ -146,43 +147,46 @@ class matchedcats():
         
     def figure2a(self):
         # correct to H0=70
-        x = np.log10(self.a100nsa.SERSIC_MASS/.7**2)
-        y = ((self.a100nsa.SERSIC_ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.SERSIC_ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
-        nsa_mass_flag =  ( self.a100nsa.SERSIC_MASS > 1000.) 
+        x = np.log10(self.a100nsa.MASS/.7**2)
+        y = ((self.a100nsa.ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
+        nsa_mass_flag =  ( self.a100nsa.MASS > 1000.) 
         # require phot error < 0.05 for abs mag
         ivar = 1./.05**2
         nsa_phot_flag = np.ones(len(nsa_mass_flag),'bool')
+
+        # require low error in both g and i bands
         for i in np.arange(3,6):
-            nsa_phot_flag = nsa_phot_flag & (self.a100nsa.SERSIC_AMIVAR[:,i] > (1./.05**2))
+            nsa_phot_flag = nsa_phot_flag & (self.a100nsa.AMIVAR[:,i] > (1./.05**2))
     
         # flag1 = (self.a100nsa.matchFlag == 3) & (self.a100nsa.photFlag_gi == 1)
         nsa_flag = nsa_mass_flag & nsa_phot_flag
-        flag1 = (self.a100nsa.a100Flag & self.a100nsa.nsaFlag) & nsa_flag #& photflagnsa  & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#
+        flag1 = (self.a100nsa.a100Flag == 1) & (self.a100nsa.nsaFlag ==1) & nsa_flag #& photflagnsa  & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
+        print('number of galaxies in NSA + A100 sample = ',sum(flag1))
         x1 = x[flag1]
         y1 = y[flag1]
         
-        flag2 = (~self.a100nsa.a100Flag & self.a100nsa.nsaFlag)& nsa_flag #& (logstellarmassTaylor_nsa > 7) & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#& (self.a100nsa.photFlag_gi == 1) 
+        flag2 = ((self.a100nsa.a100Flag ==0) & (self.a100nsa.nsaFlag==1))& nsa_flag #& (logstellarmassTaylor_nsa > 7) & (gmi_corr_nsa > -1) & (gmi_corr_nsa < 3.)#& (self.a100nsa.photFlag_gi == 1) 
         x2 = x[flag2]
         y2 = y[flag2]
         print(len(x2), sum(flag2))
         contour_levels = np.logspace(.7,5.5,15)
         contour_levels = np.linspace(10,500,12)
-        print(contour_levels)
+        #print(contour_levels)
         colormass(x1,y1, x2, y2, 'A100+NSA', 'NSA only', 'a100-nsa-color-mass-2.pdf', \
                   hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5., ymin=-.5,xmax=12, \
                   xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2='r')
-
+        return flag1
     def figure2b(self):
-        flag1 = (self.a100nsa.a100Flag & self.a100nsa.nsaFlag) & (self.a100nsa.photFlag_gi == 1)
+        flag1 = (self.a100nsa.a100Flag == 1) & (self.a100nsa.nsaFlag == 1) & (self.a100nsa.photFlag_gi == 1)
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = self.a100nsa.logMstarTaylor[flag1]
-        y1 = self.a100nsa.gmi_corrected[flag1]
+        y1 = self.a100nsa.gmi_corr[flag1]
 
-        flag2 = (self.a100nsa.a100Flag & ~self.a100nsa.nsaFlag) & (self.a100nsa.photFlag_gi == 1) 
+        flag2 = (self.a100nsa.a100Flag ==1) & (self.a100nsa.nsaFlag == 0) & (self.a100nsa.photFlag_gi == 1) 
         x2 = self.a100nsa.logMstarTaylor[flag2]
-        y2 = self.a100nsa.gmi_corrected[flag2]
+        y2 = self.a100nsa.gmi_corr[flag2]
         print(len(x2), sum(flag2))
         colormass(x1,y1, x2, y2, 'A100+NSA', 'A100 only', 'a100-nsa-color-mass-1.pdf', \
                   hexbinflag=True, contourflag=False,color2='b',xmin=5., ymin=-.5,xmax=12)
@@ -193,12 +197,12 @@ class matchedcats():
         #y = fullsdss['g']-fullsdss['r']
         #y = a100s4g.mag1 - a100s4g.mag2
         photflag = self.a100s4g.photFlag_gi == 1
-        flag1 = (self.a100s4g.a100Flag & self.a100.s4gFlag) & photflag
+        flag1 = (self.a100s4g.a100Flag == 1) & (self.a100s4g.s4gFlag == 1) #& photflag
         print('number with both = ',sum(flag1))
         x1 = x[flag1]
         y1 = y[flag1]
 
-        flag2 = (~self.a100s4g.a100Flag & self.a100.s4gFlag) & photflag
+        flag2 = (self.a100s4g.a100Flag == 0) & (self.a100s4g.s4gFlag == 1) #& photflag
         print('number with S4G only = ',sum(flag2))
         x2 = x[flag2]
         y2 = y[flag2]
@@ -212,14 +216,14 @@ class matchedcats():
                   xlabel='$S4G \ M_{ABS}$', ylabel='$ Leda \ (B-V)$', color2='r')
     def figb_s4g(self):
         x = self.a100s4g.logMstarTaylor
-        y = self.a100s4g.gmi_corrected
+        y = self.a100s4g.gmi_corr
 
-        flag1 = (self.a100s4g.a100Flag & self.a100.s4gFlag) & (self.a100s4g.photFlag_gi == 1)
+        flag1 = (self.a100s4g.a100Flag == 1) & (self.a100s4g.s4gFlag == 1) & (self.a100s4g.photFlag_gi == 1)
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = x[flag1]
         y1 = y[flag1]
 
-        flag2 = (self.a100s4g.a100Flag & ~self.a100.s4gFlag)& (a100s4g.photFlag_gi == 1)
+        flag2 = (self.a100s4g.a100Flag == 1) & (self.a100s4g.s4gFlag == 0)& (self.a100s4g.photFlag_gi == 1)
         x2 = x[flag2]
         y2 = y[flag2]
         #print(len(x2), sum(flag2))

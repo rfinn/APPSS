@@ -55,19 +55,19 @@ class a100:
 
         gamma_g = np.zeros(len(self.a100sdss['ra']))
         # only apply correction for bright galaxies
-        mag_flag_g = self.a100sdss['absMag_g'] <= -17.
+        mag_flag_g = self.a100sdss['absMag_g'] < -17.
         # equation from paper
         gamma_g[mag_flag_g] = -0.35*self.a100sdss['absMag_g'][mag_flag_g] - 5.95
-        extinction_g = gamma_g*np.log10(1./ba) 
+        extinction_g = gamma_g*np.log10(ba) 
         # correct the absolute mag for internal AND galactic extinction
         gmag_corr = self.a100sdss['modelMag_g'] + extinction_g - self.a100sdss['extinction_g']
 
 
         gamma_i = np.zeros(len(self.a100sdss['ra']))
-        mag_flag_i = self.a100sdss['absMag_i'] <= -17.
+        mag_flag_i = self.a100sdss['absMag_i'] < -17.
         # equation from paper
         gamma_i[mag_flag_i] = -0.15*self.a100sdss['absMag_i'][mag_flag_i] - 2.55
-        extinction_i = gamma_g*np.log10(1./ba) 
+        extinction_i = gamma_g*np.log10(ba) 
         # correct the absolute mag for internal AND galactic extinction
         imag_corr = self.a100sdss['modelMag_i'] + extinction_i - self.a100sdss['extinction_i']
         gmi_corr = gmag_corr - imag_corr
