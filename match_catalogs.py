@@ -17,30 +17,7 @@ from join_catalogs import make_new_cats, join_cats
 import time
 start_time = time.time()
 
-
-class a100:
-    def __init__(self, a100_catalog,sdss_catalog):
-        '''
-        INPUT:
-        - a100_catalog = csv version of a100 catalog
-        - sdss_catalog = csv version of Martha's sdss catalog that is line-matched to A100
-
-        '''
-        # read in a100 catalog
-        self.a = ascii.read(a100_catalog,format='csv')
-        self.a.rename_column('AGCNr','AGC')
-        # read in sdss catalog
-        self.s = ascii.read(sdss_catalog,format='csv')
-        # join cats
-        self.a100sdss = join(self.a,self.s,keys='AGC')
-
-        self.calc_distance_quantities()
-        self.internal_extinction()
-
-        self.define_photflag()
-        self.taylor_mstar()
-        self.write_a100sdss()
-        
+class phot_functions():
     def calc_distance_quantities(self):
         #redshift = self.a100sdss['Vhelio']/c.c.to('km/s').value
         #dL = Column(cosmo.luminosity_distance(redshift),name='distance',unit=u.Mpc)
@@ -50,30 +27,29 @@ class a100:
         c2 = MaskedColumn(self.absMag_i,name='absMag_i',unit=u.mag)
         self.a100sdss.add_columns([c1,c2])
 
-    def internal_extinction(self):  
+    def internal_extinction(self, gflag = False):
+
         # calc internal extinction
 
         # this is exponential fit a/b (not ba)
         ab = self.a100sdss['expAB_r']
         ba = 1./ab
-        
-        gamma_g = np.zeros(len(self.a100sdss['ra']))
+        gamma_g = np.zeros(len(self.a100sdss[self.ref_column]))
         # only apply correction for bright galaxies
         mag_flag_g = self.a100sdss['absMag_g'] <= -17.
         # equation from paper
         gamma_g[mag_flag_g] = -0.35*self.a100sdss['absMag_g'][mag_flag_g] - 5.95
         extinction_g = gamma_g*np.log10(ba) 
         # correct the absolute mag for internal AND galactic extinction
-        gmag_corr = self.a100sdss['cModelMag_g'] + extinction_g - self.a100sdss['extinction_g']
+        gmag_corr = self.a100sdss['cModelMag_g'] - extinction_g - self.a100sdss['extinction_g']
 
-
-        gamma_i = np.zeros(len(self.a100sdss['ra']))
+        gamma_i = np.zeros(len(self.a100sdss[self.ref_column]))
         mag_flag_i = self.a100sdss['absMag_i'] <= -17.
         # equation from paper
         gamma_i[mag_flag_i] = -0.15*self.a100sdss['absMag_i'][mag_flag_i] - 2.55
         extinction_i = gamma_g*np.log10(ba) 
         # correct the absolute mag for internal AND galactic extinction
-        imag_corr = self.a100sdss['cModelMag_i'] + extinction_i - self.a100sdss['extinction_i']
+        imag_corr = self.a100sdss['cModelMag_i'] - extinction_i - self.a100sdss['extinction_i']
         gmi_corr = self.a100sdss['modelMag_g'] - extinction_g - self.a100sdss['extinction_g'] \
           -(self.a100sdss['modelMag_i'] - extinction_i - self.a100sdss['extinction_i']) 
 
@@ -93,8 +69,7 @@ class a100:
         #Gmi_halfShao = absMag_i>-20.5? (modelMag_g)-(modelMag_i) : gmi_Shao
 
         #gmi_no_int = self.a100sdss['absMag_g'] - self.a100sdss['absMag_i']
-        gmi_no_int =(self.a100sdss['modelMag_g'] - self.a100sdss['extinction_g']) -(self.a100sdss['modelMag_i'] - self.a100sdss['extinction_i'])
-        
+        gmi_no_int =(self.a100sdss['modelMag_g'] - self.a100sdss['extinction_g']) -(self.a100sdss['modelMag_i'] - self.a100sdss['extinction_i']) 
         # append corrected mag and gmi color to table
 
         c1 = MaskedColumn(gmag_corr, name='gmag_corr',unit = u.mag)
@@ -117,7 +92,7 @@ class a100:
         # add photflag column to a100sdss
 
         # galaxies that have sdss photometry
-        sdssflag = self.a100sdss['objID'] > 0
+        sdssflag = self.a100sdss[self.ref_column_objid] > 0
 
         # galaxies that have good photometry
         photflag_1 = ((self.a100sdss['modelMagErr_g']<0.05) &\
@@ -129,8 +104,8 @@ class a100:
                       (self.a100sdss['modelMagErr_i']>0.05) |\
                       (self.a100sdss['cModelMagErr_g']>0.05) |\
                       (self.a100sdss['cModelMagErr_i']>0.05))
-        photflag_gi = np.zeros(len(self.a100sdss['ra']),'i')
-        temp = np.ones(len(self.a100sdss['ra']),'i')
+        photflag_gi = np.zeros(len(self.a100sdss[self.ref_column]),'i')
+        temp = np.ones(len(self.a100sdss[self.ref_column]),'i')
         photflag_gi[photflag_1 & sdssflag] = temp[photflag_1 & sdssflag]
         photflag_gi[photflag_2 & sdssflag] = 2*temp[photflag_2 & sdssflag]
 
@@ -139,20 +114,85 @@ class a100:
     def taylor_mstar(self):
         # calc stellar mass
         logMstarTaylor=1.15+0.70*(self.a100sdss['gmi_corr']) -0.4*(self.a100sdss['absMag_i_corr'])
+        ###
+        # NSA abs mags are for H0=100, need to correct for our assumed cosmology
+        # so need to add 5*np.log10(h), where h = cosmo.H(0)/100.
+        
         # -0.68 + .7*gmi_cor + (Mi-4.56)/-2.5
         # add taylor_mstar column to a100sdss
         # only set values for galaxies with photflag == 1
         flag = self.a100sdss['photFlag_gi'] == 1
-        goodMstar = np.zeros(len(self.a100sdss['ra']),'f')
+        goodMstar = np.zeros(len(self.a100sdss[self.ref_column]),'f')
         goodMstar[flag] = logMstarTaylor[flag]
                              
         c1 = MaskedColumn(goodMstar,name='logMstarTaylor', mask = ~flag)
         self.a100sdss.add_column(c1)
         
+class a100(phot_functions):
+    def __init__(self, a100_catalog,sdss_catalog):
+        '''
+        INPUT:
+        - a100_catalog = csv version of a100 catalog
+        - sdss_catalog = csv version of Martha's sdss catalog that is line-matched to A100
+
+        '''
+        # read in a100 catalog
+        self.a = ascii.read(a100_catalog,format='csv')
+        self.a.rename_column('AGCNr','AGC')
+        # read in sdss catalog
+        self.s = ascii.read(sdss_catalog,format='csv')
+        # join cats
+        self.a100sdss = join(self.a,self.s,keys='AGC')
+
+        self.ref_column = 'ra'
+        self.ref_column_objid = 'objID'
+        self.calc_distance_quantities()
+        self.internal_extinction()
+
+        self.define_photflag()
+        self.taylor_mstar()
+        self.write_a100sdss()
+        
     def write_a100sdss(self):
         # write full catalog
         self.a100sdss.write(homedir+'/github/APPSS/tables/a100-sdss.fits',format='fits',overwrite=True)
 
+class gswlc(phot_functions):
+    def __init__(self, catalog):
+        '''
+        INPUT:
+        - gswlc-A2-sdssphot.fits (GSWLC-A2 file, with SDSS phot that Adriana downloaded attached)
+
+        OUTPUT:
+        - gswlc-A2-sdssphot-corrected.fits - input file with columns attached for
+          - inclination-corrected colors
+          - Taylor stellar mass
+        '''
+        # read in gswlc-A2-sdssphot.fit catalog
+        # this is the 
+        self.a100sdss = Table(fits.getdata(catalog))
+
+        self.ref_column = 'RA_1'
+        self.ref_column_objid = 'objID_2'
+        self.run_all()
+    def run_all(self):
+        # calculate column Dist and append to table
+        dist = self.a100sdss['Z']*3.e5/cosmo.H(0).value
+        c1 = Column(dist,name='Dist')
+        self.a100sdss.add_column(c1)
+
+        # now move on to calculating phot quantities, corrected for inclination
+        self.calc_distance_quantities()
+        self.internal_extinction(gflag=True)
+
+        self.define_photflag()
+        self.taylor_mstar()
+        self.write_a100sdss()
+        
+    def write_a100sdss(self):
+        # write full catalog
+        
+        self.a100sdss.write(homedir+'/github/APPSS/tables/gswlc-A2-sdssphot-corrected.fits',format='fits',overwrite=True)
 
 class match2a100sdss():
     def __init__(self, a100sdss=None):
@@ -162,15 +202,15 @@ class match2a100sdss():
         # read in nsa
         self.nsa = fits.getdata(nsacat)
         a100 = self.a100sdss
-        print('BEFORE MATCHING')
+        print('FULL CATALOGS, BEFORE MATCHING')
         print('total number in A100 = ', len(a100))
-        print('total number in NSA = ',len(nsa))
+        print('total number in NSA = ',len(self.nsa))
         
         # match to agc overlap region        # match catalogs
         velocity1 = a100.Vhelio
-        velocity2 = nsa.Z*(c.c.to('km/s').value)
+        velocity2 = self.nsa.Z*(c.c.to('km/s').value)
         voffset = 300.
-        a1002, a100_matchflag, nsa2, nsa_matchflag = make_new_cats(a100, nsa,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
+        a1002, a100_matchflag, nsa2, nsa_matchflag = make_new_cats(a100, self.nsa,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
         
         # join a100-sdss and nsa into one table
         joined_table = hstack([a1002,nsa2])
@@ -202,6 +242,7 @@ class match2a100sdss():
           & (self.nsa.DEC > 0) & (self.nsa.DEC < 35.)
         # keep overlap region
         nsa = self.nsa[keepnsa]
+        print('')
         print('OVERLAP VOLUME, BEFORE MATCHING')
         print('total number in A100 = ', len(a100))
         print('total number in NSA = ',len(nsa))
@@ -216,7 +257,8 @@ class match2a100sdss():
         joined_table = hstack([a1002,nsa2])
 
         # print match statistics
-        print('AFTER MATCHING')
+        print('')
+        print('OVERLAP VOLUME, AFTER MATCHING')
         print('total number in A100 = ',sum(a100_matchflag))
         print('total number in NSA = ',sum(nsa_matchflag))
         print('number of unique galaxies = ',len(a1002))
@@ -235,33 +277,34 @@ class match2a100sdss():
 
     def match_gswlc(self,gswcat):
         a100 = self.a100sdss
-        gsw = ascii.read(gswcat)
+        #gsw = ascii.read(gswcat)
+        self.gsw = fits.getdata(gswcat)
         # match to agc     
         velocity1 = a100.Vhelio
-        velocity2 = gsw['Z']*(c.c.to('km/s').value)
+        velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
         voffset = 300.
-        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],gsw['RA'], gsw['DEC'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
-        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
+        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],self.gsw['RA_1'], self.gsw['DEC_1'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
+        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_1',DECkey2='DEC_1', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
     
         # print match statistics
-        print('AFTER MATCHING')
+        print('FULL CATALOGS, AFTER MATCHING')
         print('total number in A100 = ',sum(a100_matchflag))
         print('total number in GSWLC-A2 = ',sum(gsw_matchflag))
         print('number of unique galaxies = ',len(a1002))
         print('number of matches between A100 and GSWLC-A2 = ',sum(a100_matchflag & gsw_matchflag))
         print('number in A100 but not in GSWLC-A2 = ',sum(a100_matchflag & ~gsw_matchflag))
-        print('number in NSA but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
+        print('number in GSWLC but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
 
         # reset catalogs to match overlap region only
-        a100 = self.a100sdss
+        #a100 = self.a100sdss
         # read in gsw
-        self.gsw = ascii.read(gswcat)
-        
+        #self.gsw = fits.getdata(gswcat)
+
         # define overlap region
-        ramin = 120
-        ramax = 232
-        decmin = 0
-        decmax = 35
+        ramin = 140.
+        ramax = 230.
+        decmin = 0.
+        decmax = 35.
         zmax = 0.05
         vmax = 15000
 
@@ -276,10 +319,10 @@ class match2a100sdss():
 
         # define overlap in terms of gsw quantities
         keep2 = (self.gsw['Z'] < zmax) &\
-           (self.gsw['RA'] > ramin) &\
-           (self.gsw['RA'] < ramax) & \
-           (self.gsw['DEC'] > decmin) & \
-           (self.gsw['DEC'] < 35.) 
+           (self.gsw['RA_1'] > ramin) &\
+           (self.gsw['RA_1'] < ramax) & \
+           (self.gsw['DEC_1'] > decmin) & \
+           (self.gsw['DEC_1'] < 35.) 
         gsw = self.gsw[keep2]
         # join cats
         # match to agc overlap region     
@@ -287,25 +330,30 @@ class match2a100sdss():
         velocity2 = gsw['Z']*(c.c.to('km/s').value)
         voffset = 300.
 
-        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],gsw['RA'], gsw['DEC'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
-        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
+        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],gsw['RA_1'], gsw['DEC_1'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
+        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', RAkey2='RA_1',DECkey2='DEC_1', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
         
         # join a100-sdss and nsa into one table
         joined_table = hstack([a1002,gsw2])
         #self.a1002 = a100
         #self.gsw2 = gsw2 
         # print match statistics
-        print('AFTER MATCHING')
+        print('')
+        print('OVERLAP VOLUME, AFTER MATCHING')
         print('total number in A100 = ',sum(a100_matchflag))
         print('total number in GSWLC-A2 = ',sum(gsw_matchflag))
         print('number of unique galaxies = ',len(a1002))
         print('number of matches between A100 and GSWLC-A2 = ',sum(a100_matchflag & gsw_matchflag))
         print('number in A100 but not in GSWLC-A2 = ',sum(a100_matchflag & ~gsw_matchflag))
-        print('number in NSA but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
+        print('number in GSWLC but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
         # add columns that track if galaxy is in agc and in nsa
         c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
         c2 = Column(gsw_matchflag,name='gswFlag',dtype='i')
         joined_table.add_columns([c1,c2])
+        # append photometry columns for GSWLC data
+
+        # color with inclination correction
+
         
         # write out joined a100-sdss-gswlc catalog
         joined_table.write(homedir+'/github/APPSS/tables/a100-gswlcA2.fits',format='fits',overwrite=True)
@@ -325,13 +373,13 @@ class match2a100sdss():
         voffset = 300.
         a1002, a100_matchflag, s4g2, s4g_matchflag = make_new_cats(a100, s4g,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
         
-        print('AFTER MATCHING')
+        print('FULL CATALOGS, AFTER MATCHING')
         print('total number in A100 = ',sum(a100_matchflag))
         print('total number in S4G = ',sum(s4g_matchflag))
         print('number of unique galaxies = ',len(a1002))
         print('number of matches between A100 and S4G = ',sum(a100_matchflag & s4g_matchflag))
         print('number in A100 but not in S4G = ',sum(a100_matchflag & ~s4g_matchflag))
-        print('number in NSA but not in A100 = ',sum(~a100_matchflag & s4g_matchflag))
+        print('number in S4G but not in A100 = ',sum(~a100_matchflag & s4g_matchflag))
 
         # define overlap region
         ramin = 140
@@ -356,10 +404,10 @@ class match2a100sdss():
         keepa100 = (((self.a100sdss.RAdeg_OC > ramin) & (self.a100sdss.RAdeg_OC < ramax) &\
           (self.a100sdss.DECdeg_OC > decmin) & (self.a100sdss.DECdeg_OC < decmax)) |\
           ((self.a100sdss.RAdeg_OC > ramin2) & (self.a100sdss.RAdeg_OC < ramax2) &\
-          (self.a100sdss.DECdeg_OC > decmin2) & (self.a100sdss.DECdeg_OC < decmax2))) &\
+          (self.a100sdss.DECdeg_OC > decmin2) & (self.a100sdss.DECdeg_OC < decmax2)) &\
           ((self.a100sdss.RAdeg_Use > ramin3) & (self.a100sdss.RAdeg_Use < ramax3) &\
-          (self.a100sdss.DECdeg_Use > decmin3) & (self.a100sdss.DECdeg_Use < decmax3))) &\
-          (self.a100sdss.Vhelio < vmax) 
+          (self.a100sdss.DECdeg_Use > decmin3) & (self.a100sdss.DECdeg_Use < decmax3)) &\
+          (self.a100sdss.Vhelio < vmax) )
         # cull a100
         a100 = self.a100sdss[keepa100]
 
@@ -370,10 +418,10 @@ class match2a100sdss():
         keep2 = (((s4g['ra'] > ramin) & (s4g['ra'] < ramax) &\
           (s4g['dec'] > decmin) & (s4g['dec'] < decmax)) |\
           ((s4g['ra'] > ramin2) & (s4g['ra'] < ramax2) &\
-          (s4g['dec'] > decmin2) & (s4g['dec'] < decmax2))) &\
+          (s4g['dec'] > decmin2) & (s4g['dec'] < decmax2)) &\
           ((s4g['ra'] > ramin3) & (s4g['ra'] < ramax3) &\
-          (s4g['dec'] > decmin3) & (s4g['dec'] < decmax3))) &\
-          (s4g['vrad'] < vmax)
+          (s4g['dec'] > decmin3) & (s4g['dec'] < decmax3)) &\
+          (s4g['vrad'] < vmax))
         s4g = s4g[keep2]
         # create new RA and DEC columns WITHOUT units attached
         ra = s4g['ra']/u.deg
@@ -390,14 +438,14 @@ class match2a100sdss():
        # join a100-sdss and nsa into one table
         joined_table = hstack([a1002,s4g2])
 
-
-        print('AFTER MATCHING')
+        print('')
+        print('OVERLAP VOLUME, AFTER MATCHING')
         print('total number in A100 = ',sum(a100_matchflag))
         print('total number in S4G = ',sum(s4g_matchflag))
         print('number of unique galaxies = ',len(a1002))
         print('number of matches between A100 and S4G = ',sum(a100_matchflag & s4g_matchflag))
         print('number in A100 but not in S4G = ',sum(a100_matchflag & ~s4g_matchflag))
-        print('number in NSA but not in A100 = ',sum(~a100_matchflag & s4g_matchflag))
+        print('number in S4G but not in A100 = ',sum(~a100_matchflag & s4g_matchflag))
         # add columns that track if galaxy is in agc and in nsa
         c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
         c2 = Column(s4g_matchflag,name='s4gFlag',dtype='i')
@@ -407,7 +455,8 @@ class match2a100sdss():
         
 
         joined_table.write(homedir+'/github/APPSS/tables/a100-s4g.fits',format='fits',overwrite=True)
-        
+
+
     def plot_a100_skycoverage(self):
         fig = plt.figure(figsize=(8,6))
         ax = fig.add_subplot(111, projection="mollweide")
@@ -415,12 +464,18 @@ class match2a100sdss():
         pass
 
 if __name__ == '__main__':
-    make_a100sdss = True
+    make_a100sdss = False
     if make_a100sdss:
         a100_file = homedir+'/github/APPSS/tables/a100.HIparms.191001.csv'
         # read in sdss phot, line-matched catalogs
         sdss_file = homedir+'/github/APPSS/tables/a100.SDSSparms.191001.csv'
         a = a100(a100_file,sdss_file)
+
+    make_gswlc_sdss = True
+    if make_gswlc_sdss:
+        gswlc_file = homedir+'/github/APPSS/tables/gswlc-A2-sdssphot.fitsvar.fits'
+        # read in sdss phot, line-matched catalogs
+        g = gswlc(gswlc_file)
 
 
     # next part - match a100 to other catalogs
@@ -429,15 +484,26 @@ if __name__ == '__main__':
         a100sdsscat = homedir+'/github/APPSS/tables/a100-sdss.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)
 
+        print('################################')
         print('\nMATCHING TO NSA \n')
+        print('################################')
         # match to NSA
-        nsacat = homedir+'/research/NSA/nsa_v0_1_2.fits'
+        #nsacat = homedir+'/research/NSA/nsa_v0_1_2.fits'
+        nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'
         a.match_nsa(nsacat)
+        print('################################')
         print('\nMATCHING TO GSWLC-A2 \n')
-        # match to GSWLC-A2 
-        gsw = homedir+'/github/APPSS/tables/gswlc-A2-withheader.dat'
+        print('################################')
+        # match to GSWLC-A2
+
+        # calculate internal extinction, colors, and taylor stellar mass
+        
+        #gsw = homedir+'/github/APPSS/tables/gswlc-A2-withheader.dat'
+        gsw = homedir+'/github/APPSS/tables/gswlc-A2-sdssphot-corrected.fits'
         a.match_gswlc(gsw)
+        print('################################')
         print('\nMATCHING TO S4G \n')
+        print('################################')
         # match to S4G
         s4gcat = homedir+'/github/APPSS/tables/spitzer.s4gcat_5173.tbl'
         a.match_s4g(s4gcat)

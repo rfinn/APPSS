@@ -11,8 +11,6 @@ generate plots for paper
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import pyplot as plt
-
 
 import os
 from astropy.io import fits
@@ -145,18 +143,18 @@ class matchedcats():
 
         plt.savefig('Figure1.pdf')
         
-    def figure2a(self):
+    def figa_nsa(self):
         # correct to H0=70
-        x = np.log10(self.a100nsa.MASS/.7**2)
-        y = ((self.a100nsa.ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
-        nsa_mass_flag =  ( self.a100nsa.MASS > 1000.) 
+        x = np.log10(self.a100nsa.SERSIC_MASS/.7**2)
+        y = ((self.a100nsa.SERSIC_ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.SERSIC_ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
+        nsa_mass_flag =  ( self.a100nsa.SERSIC_MASS > 1000.) 
         # require phot error < 0.05 for abs mag
         ivar = 1./.05**2
         nsa_phot_flag = np.ones(len(nsa_mass_flag),'bool')
 
         # require low error in both g and i bands
         for i in np.arange(3,6):
-            nsa_phot_flag = nsa_phot_flag & (self.a100nsa.AMIVAR[:,i] > (1./.05**2))
+            nsa_phot_flag = nsa_phot_flag & (self.a100nsa.SERSIC_AMIVAR[:,i] > (1./.05**2))
     
         # flag1 = (self.a100nsa.matchFlag == 3) & (self.a100nsa.photFlag_gi == 1)
         nsa_flag = nsa_mass_flag & nsa_phot_flag
@@ -178,7 +176,7 @@ class matchedcats():
                   xmin=5., ymin=-.5,xmax=12, \
                   xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2='r')
         return flag1
-    def figure2b(self):
+    def figb_nsa(self):
         flag1 = (self.a100nsa.a100Flag == 1) & (self.a100nsa.nsaFlag == 1) & (self.a100nsa.photFlag_gi == 1)
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = self.a100nsa.logMstarTaylor[flag1]
@@ -190,6 +188,45 @@ class matchedcats():
         print(len(x2), sum(flag2))
         colormass(x1,y1, x2, y2, 'A100+NSA', 'A100 only', 'a100-nsa-color-mass-1.pdf', \
                   hexbinflag=True, contourflag=False,color2='b',xmin=5., ymin=-.5,xmax=12)
+
+    def figa_gswlc(self):
+        # figure a is catalog specific quantities
+        
+        
+        gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
+        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag 
+        x1 = self.a100gsw.logMstar[flag1]
+        y1 = self.a100gsw.gmi_corr_2[flag1]
+
+        flag2 = (self.a100gsw.a100Flag ==0) & (self.a100gsw.gswFlag == 1) & (self.a100gsw.photFlag_gi_2 == 1) 
+        x2 = self.a100gsw.logMstar[flag2]
+        y2 = self.a100gsw.gmi_corr_2[flag2]
+        
+        contour_levels = np.logspace(.7,5.5,15)
+        contour_levels = np.linspace(2,500,12)
+        #print(contour_levels)
+        colormass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'a100-gswlc-color-mass-2.pdf', \
+                  hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
+                  xmin=5., ymin=-.5,xmax=12, \
+                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel='$  \ (M_g - M_i)_{corrected}$', color2='r')
+        return flag1
+    def figb_gswlc(self):
+        # in both
+        # AND
+        # in A100 but not in GSWLC
+        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag == 1) & (self.a100gsw.photFlag_gi_1 == 1)
+        # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
+        x1 = self.a100gsw.logMstarTaylor_1[flag1]
+        y1 = self.a100gsw.gmi_corr_1[flag1]
+
+        flag2 = (self.a100gsw.a100Flag ==1) & (self.a100gsw.gswFlag == 0) & (self.a100gsw.photFlag_gi_1 == 1) 
+        x2 = self.a100gsw.logMstarTaylor_1[flag2]
+        y2 = self.a100gsw.gmi_corr_1[flag2]
+        print(len(x2), sum(flag2))
+        contour_levels = np.linspace(2,100,12)
+        colormass(x1,y1, x2, y2, 'A100+GSWLC', 'A100 only', 'a100-gswlc-color-mass-1.pdf', \
+                  hexbinflag=True, contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
+                  color2='b',xmin=5., ymin=-.5,xmax=12)
     def figa_s4g(self):
         x = self.a100s4g.mstar
         y = self.a100s4g.bvtc
@@ -234,9 +271,59 @@ class matchedcats():
                   hexbinflag=False,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5., ymin=-.5,xmax=12,nhistbin=20,alphagray=.5,color2='b')
 
-        
-    
+    def mstar(self):
+        # compare different estimates of stellar mass with our estimate from Taylor
 
+        # 3 panel plot
+        # panel one - NSA np.log10(SERSIC_MASS) vs logMstarTaylor
+        # panel two - GSWLC Mass vs logMstarTaylor
+        # panel three - S4G mstar vs logMstarTaylor
+
+        cats = [self.a100nsa, self.a100gsw, self.a100s4g]
+        xvar = ['logMstarTaylor','logMstarTaylor_1','logMstarTaylor']
+        yvar = ['SERSIC_MASS','logMstar','mstar']
+        flags = ['photFlag_gi','photFlag_gi_1','photFlag_gi']
+        survey = ['$\log_{10}(NSA \ SERSIC\_MASS/M_\odot) $', \
+                  '$\log_{10}(GSWLC \ Mstar/M_\odot )$', \
+                  '$\log_{10}(S4G \ Mstar/M_\odot )$']
+        survey = ['$NSA \ \log_{10}(M_\star/M_\odot) $', \
+                  '$GSWLC \ \log_{10}(M_\star/M_\odot) $', \
+                  '$S4G \ \log_{10}(M_\star/M_\odot) $']
+        #survey = ['$NSA $', \
+        #          '$GSWLC  $', \
+        #          '$S4G  $']
+        plt.figure(figsize=(4,8))
+        plt.subplots_adjust(hspace=.0,wspace=.4,left=.2)
+        xmin=5.5
+        xmax=12.5
+        xl = np.linspace(xmin,xmax,100)
+        for i in np.arange(3):
+            plt.subplot(3,1,i+1)
+            if i == 0:
+                y = np.log10(cats[i][yvar[i]])
+            else:
+                y = cats[i][yvar[i]]
+            flag = cats[i][flags[i]] == 1
+
+            x = cats[i][xvar[i]]
+            flag = flag & (x > xmin) & (x < xmax) & (y > xmin) & (y < xmax)
+            
+            if i < 2:
+                plt.hexbin(x[flag],y[flag],cmap='gray_r', gridsize=50,vmin=1,vmax=20)
+            else:
+                plt.plot(x[flag],y[flag],'k.')
+            if i == 2:
+                plt.xlabel('$ \log_{10}(M_\star/M_\odot) \ (Taylor+2011) $')
+            if i < 2:
+                plt.xticks([])
+            plt.ylabel(survey[i],fontsize=12)
+
+            plt.plot(xl,xl,'k--')
+            plt.axis([xmin,xmax,xmin,xmax])
+        
+    def sfr_ms(self):
+        self.a100gsw
+        pass
 
 if __name__ == '__main__':
     homedir = os.getenv('HOME')
@@ -246,4 +333,4 @@ if __name__ == '__main__':
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'
     p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
-    p.figure1()
+    #p.figure1()
