@@ -54,6 +54,8 @@ class phot_functions():
           -(self.a100sdss['modelMag_i'] - extinction_i - self.a100sdss['extinction_i']) 
 
         # calculate abs mag in g and i, corrected for MW and internal extinction
+
+        # first use distance to get distance modulus
         absMag_i_corr = imag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6) +5
         absMag_g_corr = gmag_corr - 5*np.log10(self.a100sdss['Dist']*1.e6) +5
 
@@ -117,7 +119,9 @@ class phot_functions():
         ###
         # NSA abs mags are for H0=100, need to correct for our assumed cosmology
         # so need to add 5*np.log10(h), where h = cosmo.H(0)/100.
-        
+        #logMstarTaylor = logMstarTaylor - 0.4*(5*np.log10(cosmo.H(0).value/100.))
+        # not doing this b/c absMag_i_corr already has distance corrected for H0
+
         # -0.68 + .7*gmi_cor + (Mi-4.56)/-2.5
         # add taylor_mstar column to a100sdss
         # only set values for galaxies with photflag == 1
@@ -194,6 +198,12 @@ class gswlc(phot_functions):
         
         self.a100sdss.write(homedir+'/github/APPSS/tables/gswlc-A2-sdssphot-corrected.fits',format='fits',overwrite=True)
 
+    def match2zoo(self):
+        zoo = fits.getdata('/Users/rfinn/research/GalaxyZoo/GalaxyZoo1_DR_table2.fits')
+        # nothing here yet
+        # galaxy zoo SDSS objIDs don't match what we have in a100 - like zero matches
+        # not sure why
+        
 class match2a100sdss():
     def __init__(self, a100sdss=None):
         self.a100sdss = fits.getdata(a100sdss)
@@ -464,7 +474,7 @@ class match2a100sdss():
         pass
 
 if __name__ == '__main__':
-    make_a100sdss = False
+    make_a100sdss = True
     if make_a100sdss:
         a100_file = homedir+'/github/APPSS/tables/a100.HIparms.191001.csv'
         # read in sdss phot, line-matched catalogs
