@@ -39,7 +39,7 @@ class phot_functions():
         mag_flag_g = self.a100sdss['absMag_g'] <= -17.
         # equation from paper
         gamma_g[mag_flag_g] = -0.35*self.a100sdss['absMag_g'][mag_flag_g] - 5.95
-        extinction_g = gamma_g*np.log10(ba) 
+        extinction_g = gamma_g*np.log10(1.*ba) 
         # correct the absolute mag for internal AND galactic extinction
         gmag_corr = self.a100sdss['cModelMag_g'] - extinction_g - self.a100sdss['extinction_g']
 
@@ -47,7 +47,7 @@ class phot_functions():
         mag_flag_i = self.a100sdss['absMag_i'] <= -17.
         # equation from paper
         gamma_i[mag_flag_i] = -0.15*self.a100sdss['absMag_i'][mag_flag_i] - 2.55
-        extinction_i = gamma_g*np.log10(ba) 
+        extinction_i = gamma_i*np.log10(1.*ba) 
         # correct the absolute mag for internal AND galactic extinction
         imag_corr = self.a100sdss['cModelMag_i'] - extinction_i - self.a100sdss['extinction_i']
         gmi_corr = self.a100sdss['modelMag_g'] - extinction_g - self.a100sdss['extinction_g'] \
@@ -83,9 +83,11 @@ class phot_functions():
         c7 = MaskedColumn(G_Shao,name='G_Shao',unit=u.mag)
         c8 = MaskedColumn(I_Shao,name='I_Shao',unit=u.mag)
         c9 = MaskedColumn(gmi_Shao,name='gmi_Shao',unit=u.mag)
-        #c10 = MaskedColumn(absMag_i_corr,name='absMag_i_corr',unit=u.mag)
+        # add the extinction coefficients (these will be included in paper table)
+        c10 = MaskedColumn(gamma_g,name='gamma_g')
+        c11 = MaskedColumn(gamma_i,name='gamma_i')
         
-        self.a100sdss.add_columns([c1,c2,c3,c4,c5,c6,c7,c8,c9])
+        self.a100sdss.add_columns([c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11])
         
 
 
@@ -131,6 +133,8 @@ class phot_functions():
                              
         c1 = MaskedColumn(goodMstar,name='logMstarTaylor', mask = ~flag)
         self.a100sdss.add_column(c1)
+
+        
         
 class a100(phot_functions):
     def __init__(self, a100_catalog,sdss_catalog):
@@ -148,6 +152,7 @@ class a100(phot_functions):
         # join cats
         self.a100sdss = join(self.a,self.s,keys='AGC')
 
+        # now calculate quantities that we use in our paper
         self.ref_column = 'ra'
         self.ref_column_objid = 'objID'
         self.calc_distance_quantities()
@@ -171,6 +176,17 @@ class gswlc(phot_functions):
         - gswlc-A2-sdssphot-corrected.fits - input file with columns attached for
           - inclination-corrected colors
           - Taylor stellar mass
+
+        PROCEDURE:
+        - downloaded catalog gswlc-A2 (640,659 objects)
+          - made a version with the header line preceded by #
+          - read into topcat as an ascii file
+        - downloaded Adriana's catalog with SDSS photometry and errors
+          - https://drive.google.com/drive/folders/1P3ooZ5euqK8DvpsgT_2b5eOgtma6XT0-
+          - Table_sdss_...
+        - matched tables in topcat according to Adriana's directions
+          - Sky match (RA, DEC), 0.5" error
+          - output is gswlc-A2-sdssphot.fits
         '''
         # read in gswlc-A2-sdssphot.fit catalog
         # this is the 
@@ -181,6 +197,8 @@ class gswlc(phot_functions):
         self.run_all()
     def run_all(self):
         # calculate column Dist and append to table
+        # this is technically not the right distance to use for the GSWLC,
+        # we should be using the distance in the A100 catalog, which has a flow model applied.
         dist = self.a100sdss['Z']*3.e5/cosmo.H(0).value
         c1 = Column(dist,name='Dist')
         self.a100sdss.add_column(c1)

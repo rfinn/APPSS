@@ -571,6 +571,25 @@ class matchedcats():
         plt.xlim(-14,-7.5)
         plt.legend(loc='upper left')
         plt.savefig('ssfr.pdf')
+
+def paperplots():
+    p.figure1()
+
+    p.mstar()
+    
+    p.figa_nsa()
+    p.figb_nsa()
+
+    p.figa_gswlc()
+    p.figb_gswlc()
+    
+    p.figa_s4g()
+    p.figb_s4g()
+
+    p.ssfrmstar()
+    p.ssfrcolor()
+    p.ssfrHIfrac()
+    
 if __name__ == '__main__':
     homedir = os.getenv('HOME')
     table_path = homedir+'/github/appss/tables/'
@@ -579,4 +598,3 @@ if __name__ == '__main__':
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'
     p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
-    #p.figure1()
