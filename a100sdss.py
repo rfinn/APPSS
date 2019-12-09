@@ -260,6 +260,7 @@ class matchedcats():
     def figa_nsa(self):
         # correct to H0=70
         x = np.log10(self.a100nsa.SERSIC_MASS/.7**2)
+        #x = np.log10(self.a100nsa.SERSIC_MASS)
         y = ((self.a100nsa.SERSIC_ABSMAG[:,3] - self.a100nsa.EXTINCTION[:,3]) - (self.a100nsa.SERSIC_ABSMAG[:,5] - self.a100nsa.EXTINCTION[:,5]))
         nsa_mass_flag =  ( self.a100nsa.SERSIC_MASS > 1000.) 
         # require phot error < 0.05 for abs mag
@@ -420,14 +421,14 @@ class matchedcats():
                     ymin=xmin
                     ymax=xmax
                     if i == 0:
-                        y = np.log10(cats[i][yvar[i]])
+                        y = np.log10(cats[i][yvar[i]]/.7**2)
                     else:
                         y = cats[i][yvar[i]]
                 elif j == 1:
                     ymin=-1.2
                     ymax=1.2
                     if i == 0:
-                        y = np.log10(cats[i][yvar[i]]) - (cats[i][xvar[i]])
+                        y = np.log10(cats[i][yvar[i]]/.7**2) - (cats[i][xvar[i]])
                     else:
                         y = (cats[i][yvar[i]]) - (cats[i][xvar[i]])
                 flag = cats[i][flags[i]] == 1

@@ -17,6 +17,7 @@ from join_catalogs import make_new_cats, join_cats
 import time
 start_time = time.time()
 
+H0 = 70. # km/s/Mpc
 class phot_functions():
     def calc_distance_quantities(self):
         #redshift = self.a100sdss['Vhelio']/c.c.to('km/s').value
@@ -89,8 +90,6 @@ class phot_functions():
         
         self.a100sdss.add_columns([c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11])
         
-
-
     def define_photflag(self):
         # define flag to denote objects with good photometry
         # add photflag column to a100sdss
