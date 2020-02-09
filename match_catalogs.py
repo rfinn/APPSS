@@ -18,6 +18,13 @@ import time
 start_time = time.time()
 
 H0 = 70. # km/s/Mpc
+
+# magnitude of Sun in WISE filters
+# from Jarrett+2013 https://iopscience.iop.org/article/10.1088/0004-6256/145/1/6
+W1_sun = 3.24
+W2_sun = 3.27
+W3_sun = 3.23
+W4_sun = 3.25
 class phot_functions():
     def calc_distance_quantities(self):
         #redshift = self.a100sdss['Vhelio']/c.c.to('km/s').value
@@ -133,9 +140,49 @@ class phot_functions():
         c1 = MaskedColumn(goodMstar,name='logMstarTaylor', mask = ~flag)
         self.a100sdss.add_column(c1)
 
+class wise_functions():
+    def calc_wise_mstar(self):
+        Mabs_W1 =self.a100sdsswise['w1_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # Jarrett
+        self.logL_W1_sun = (-0.4*(Mabs_W1 - W1_sun))
+        # from Culver+2014 
+        log_ML = -1.96*(self.a100sdsswise['w1_mag']-self.a100sdsswise['w2_mag']) -  0.03
+        # for star-forming (lower mass-to-light systems)
+        # log10(M/LW1) = -1.93*(W1-W2) - 0.04
+        log_ML = -1.93*(self.a100sdsswise['w1_mag']-self.a100sdsswise['w2_mag']) -  0.04
+        self.logMstarWise = logL_W1_sun + log_ML
         
+        c1 = MaskedColumn(self.logL12,name='logLW1')
+        c2 = MaskedColumn(self.logMstarWise,name='logMstarWise')
+        self.a100sdsswise.add_columns([c1,c2])
+
+        pass
+    def calc_sfr12(self):
+        # cluver+2017
+        Mabs_W3 =self.a100sdsswise['w3_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # Jarrett
+        logL_W3_sun = (-0.4*(Mabs_W3 - W3_sun))
+        # Cluver+2018
+        #log SFR (M yr−1 ) = (0.889 ± 0.018) log L12µm(L) − (7.76 ± 0.15),
+        self.logSFR_W3 = 0.889*logL_W3_sun - 7.76
+        c1 = MaskedColumn(self.logL_W3_sun,name='logL12')
+        c2 = MaskedColumn(self.logSFR_W3,name='logSFR12')
+        self.a100sdsswise.add_column([c1,c2])
+        pass
+    def calc_sfr24(self):
+        # cluver+2017
+        Mabs_W4 =self.a100sdsswise['w4_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # Jarrett
+        logL_W4_sun = (-0.4*(Mabs_W4 - W4_sun))
+        # Cluver+2018
+        #log SFR (M yr−1 ) = (0.889 ± 0.018) log L12µm(L) − (7.76 ± 0.15),
+        self.logSFR_W4 = 0.915*logL_W4_sun - 8.01
+        c1 = MaskedColumn(self.logL_W4_sun,name='logL22')
+        c2 = MaskedColumn(self.logSFR_W4,name='logSFR22')
+        self.a100sdsswise.add_column([c1,c2])
+
         
-class a100(phot_functions):
+class a100(phot_functions,wise_functions):
     def __init__(self, a100_catalog,sdss_catalog):
         '''
         INPUT:
@@ -159,12 +206,31 @@ class a100(phot_functions):
 
         self.define_photflag()
         self.taylor_mstar()
-        self.write_a100sdss()
+
         
-    def write_a100sdss(self):
+        # match unWISE photometry to table
+        self.get_wise()
+
+        self.a100sdsswise = join(self.a100sdss,self.wise,keys='AGC',join_type='left')
+        self.calc_wise_mstar()
+        self.calc_sfr12()
+        # write out table
+        self.write_joined_table()
+    def get_wise(self):
+        # read in unWISE photometry from Dustin
+        wisefile = homedir+'/github/APPSS/tables/a100.SDSSObjID.191001.match3.unwise.fits'
+        self.wise = fits.getdata(wisefile)
+        self.wise = Table(self.wise)
+        self.wise.rename_column('objid','unwise_objid')
+        self.wise.rename_column('finn_objid','objID')
+        self.wise.rename_column('agc','AGC')
+        pass
+
+    def write_joined_table(self):
         # write full catalog
         self.a100sdss.write(homedir+'/github/APPSS/tables/a100-sdss.fits',format='fits',overwrite=True)
-
+        self.a100sdsswise.write(homedir+'/github/APPSS/tables/a100-sdss-wise.fits',format='fits',overwrite=True)
+        
 class gswlc(phot_functions):
     def __init__(self, catalog):
         '''
@@ -498,7 +564,7 @@ if __name__ == '__main__':
         sdss_file = homedir+'/github/APPSS/tables/a100.SDSSparms.191001.csv'
         a = a100(a100_file,sdss_file)
 
-    make_gswlc_sdss = True
+    make_gswlc_sdss = False
     if make_gswlc_sdss:
         gswlc_file = homedir+'/github/APPSS/tables/gswlc-A2-sdssphot.fitsvar.fits'
         # read in sdss phot, line-matched catalogs
@@ -506,7 +572,7 @@ if __name__ == '__main__':
 
 
     # next part - match a100 to other catalogs
-    match2a100Flag = True
+    match2a100Flag = False
     if match2a100Flag:
         a100sdsscat = homedir+'/github/APPSS/tables/a100-sdss.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)

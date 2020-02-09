@@ -27,21 +27,32 @@ a100 = fits.getdata(filename)
 
 ## CREATE NEW TABLE WITH SELECTED COLUMNS
 #newphotflag = 
-colnames = ['AGC_number','RA', 'DEC','phot_Flag','dist','logM_HI','vhelio','g_i','absMag_g_corr','absMag_i_corr','logMstar_Taylor']
+colnames = ['AGC_number','phot_Flag','objID',\
+            'RA', 'DEC','cz','dist',\
+            'Ext_g','Ext_i','gamma_g','gamma_i',\
+            'expAB_r',
+            'absMag_g_corr','absMag_i_corr',\
+            'gmi_corr','logMstar_Taylor','logM_HI']
 #colnames = ['RA', 'DEC','photFlag','DIST','logMHI','vhelio','gmi','absMag_g_corr','absMag_i_corr','logMstarTaylor']
 newt = Table([a100.AGC,\
+              a100.photFlag_gi, \
+              a100.objID, \
               a100.RAdeg_Use,\
               a100.DECdeg_Use, \
-              a100.photFlag_gi, \
               # do we want to make this a 1/0 flag? - no, leave it as 0, 1, 2
-              a100.Dist, \
-              a100.logMH, \
               a100.Vhelio, \
+              a100.Dist, \
+              a100.extinction_g,\
+              a100.extinction_i,\
+              a100.gamma_g,\
+              a100.gamma_i,
+              a100.expAB_r,\
               # missing internal ext coeff, need to update match_catalogs.py to write this out to a100-sdss.fits
-              a100.gmi_corr, \
               a100.absMag_g_corr, \
               a100.absMag_i_corr, \
-              a100.logMstarTaylor], names=colnames)
+              a100.gmi_corr, \
+              a100.logMstarTaylor,\
+              a100.logMH], names=colnames)
 
 ## WRITE OUT SELECTED COLUMNS AS FITS FILE
 newt.write('paper-table.fits',overwrite=True)#,newt,names=colnames)
