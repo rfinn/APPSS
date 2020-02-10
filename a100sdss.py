@@ -17,10 +17,9 @@ from astropy.io import fits
 from astropy.io import ascii
 from astropy import constants as c
 from astropy import units as u
-from astropy.table import Table
+from astropy.table import Table, join
 from astropy.coordinates import SkyCoord
 from scipy.stats import ks_2samp
-
 plt.rcParams.update({'font.size': 14})
 
 import sys
@@ -501,7 +500,7 @@ class matchedcats():
                   xmin=7., xmax=12,ymin=-13.8,ymax=-8.1, \
                   xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2='r',plotline=False)
         # add reference line at log(sSFR) = -10
-        plt.savefig('ssfr-mstar.pdf')
+        plt.savefig('ssfr-mstar-gswlc.pdf')
         return flag1
     def ssfrcolor(self):
         # sSFR vs color
@@ -523,7 +522,7 @@ class matchedcats():
                   xmin=-.5, xmax=2,ymin=-13.8,ymax=-8.1, \
                   xlabel='$(g-i)_{corrected}$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2='r',plotline=False)
         # add reference line at log(sSFR) = -10
-        plt.savefig('ssfr-color.pdf')
+        plt.savefig('ssfr-color-gswlc.pdf')
         return flag1
     def ssfrHIfrac(self):
         # star-forming main sequence
@@ -572,7 +571,140 @@ class matchedcats():
         plt.xlim(-14,-7.5)
         plt.legend(loc='upper left')
         plt.savefig('ssfr.pdf')
+    def plotelbaz(self):
+        xe=np.arange(8.5,11.5,.1)
+        xe=10.**xe
+        ye=(.08e-9)*xe
+        plt.plot(np.log10(xe),np.log10(ye),'k-',lw=1,label='$Elbaz+2011$')
+        plt.plot(np.log10(xe),np.log10(2*ye),'k:',lw=1,label='$2 \ SFR_{MS}$')
+        # using our own MS fit for field galaxies
+        # use stellar mass between 9.5 and 10.5
 
+    def compare_mstar_taylor_cluver(self):
+        plt.figure(figsize=(6,4))
+        plt.subplots_adjust(bottom=.15)
+        w1snr = np.abs(self.a100sdss['w1_nanomaggies']*np.sqrt(self.a100sdss['w1_nanomaggies_ivar']))
+        flag = w1snr > 5
+        x = self.a100sdss['logMstarTaylor']
+        y = self.a100sdss['logMstarCluver']
+        #plt.plot(x[flag],y[flag],'k.')
+        xmin=7.5
+        xmax=11.5
+        plt.hexbin(x[flag],y[flag],extent=[xmin,xmax,xmin,xmax],cmap='gray_r')
+        plt.xlabel('logMstar Taylor',fontsize=12)
+        plt.ylabel('logMstar WISE Cluver',fontsize=12)
+        xl = np.linspace(xmin,xmax,100)
+        plt.plot(xl,xl,'r--',label='1:1')
+        plt.plot(xl,xl+.25,'r--',c='.5',label='logM Taylor + .25')
+        plt.legend()
+        s = 'N = %i'%(sum(flag))
+        plt.text(10.5,8,s,horizontalalignment='left')
+
+        plt.savefig('mstar-taylor-cluver.pdf')
+        plt.savefig('mstar-taylor-cluver.png')
+    def compare_mstar_taylor_mcgaugh(self):
+        plt.figure(figsize=(8,4))
+        plt.subplots_adjust(bottom=.15)
+        w1snr = np.abs(self.a100sdss['w1_nanomaggies']*np.sqrt(self.a100sdss['w1_nanomaggies_ivar']))
+        flag = w1snr > 5
+        ngal = sum(flag)
+        x = self.a100sdss['logMstarTaylor']
+        y = self.a100sdss['logMstarMcGaugh']
+        #plt.plot(x[flag],y[flag],'k.')
+        xmin=7.5
+        xmax=11.5
+        plt.hexbin(x[flag],y[flag],extent=[xmin,xmax,xmin,xmax],cmap='gray_r')
+        plt.xlabel('logMstar Taylor',fontsize=12)
+        plt.ylabel('logMstar WISE McGaugh',fontsize=12)
+        xl = np.linspace(xmin,xmax,100)
+        plt.plot(xl,xl,'r--',label='1:1')
+        plt.plot(xl,xl+.3,'r--',c='.5',label='logM Taylor + .3')
+        plt.legend()
+
+        s = 'N = %i'%(sum(flag))
+        plt.text(10.5,8,s,horizontalalignment='left')
+        plt.savefig('mstar-taylor-mcgaugh.pdf')
+        plt.savefig('mstar-taylor-mcgaugh.png')
+    def compare_sfr_gsw_wise(self):
+        # join a100sdss and a100gsw tables using AGC number
+        self.a100sdssgsw = join(self.a100sdss,self.a100gsw,keys='AGC')
+
+
+        plt.figure(figsize=(8,3))
+        plt.subplots_adjust(bottom=.3, wspace=.3)
+        yvar = [self.a100sdssgsw['logSFR12'], self.a100sdssgsw['logSFR22']]
+        ylabels = ['logSFR12 Cluver', 'logSFR22 Cluver']
+        for i in range(len(yvar)):
+                
+            plt.subplot(1,2,i+1)
+            # plot 12um SFR vs GSWLC SFR
+            x = self.a100sdssgsw['logSFR']
+            y = yvar[i]
+            xmin=-1.5
+            xmax=1.5
+            flag = np.ones(len(x),'bool')
+            plt.hexbin(x[flag],(y[flag]),extent=[xmin,xmax,1,4],cmap='gray_r')
+            plt.xlabel('logSFR GSWLC',fontsize=12)
+            plt.ylabel(ylabels[i],fontsize=12)
+            xl = np.linspace(xmin,xmax,100)
+            plt.plot(xl,xl,'r--',label='1:1')
+            plt.legend()
+        plt.savefig('sfr-gsw-wise.pdf')
+        plt.savefig('sfr-gsw-wise.png')        
+
+    def sfr_mstar_wise(self):
+        plt.figure(figsize=(6,4))
+        plt.subplots_adjust(bottom=.15)
+        w1snr = np.abs(self.a100sdss['w1_nanomaggies']*np.sqrt(self.a100sdss['w1_nanomaggies_ivar']))
+        w12snr = np.abs(self.a100sdss['w3_nanomaggies']*np.sqrt(self.a100sdss['w3_nanomaggies_ivar']))
+        flag = (w1snr > 5) & (w12snr > 5)
+        x = self.a100sdss['logMstarMcGaugh']
+        y = self.a100sdss['logSFR12']
+        #plt.plot(x[flag],y[flag],'k.')
+        xmin=7.5
+        xmax=11.5
+        ymin = -1
+        ymax=5
+        plt.hexbin(x[flag],y[flag],extent=[xmin,xmax,ymin,ymax],cmap='gray_r')
+        plt.xlabel('logMstar Cluver',fontsize=12)
+        plt.ylabel('logSFR 12um',fontsize=12)
+        #xl = np.linspace(xmin,xmax,100)
+        #plt.plot(xl,xl,'r--',label='1:1')
+        #plt.plot(xl,xl+.4,'r--',c='.5',label='logM Taylor + .4')
+        self.plotelbaz()
+        plt.legend()
+        s = 'N = %i'%(sum(flag))
+        plt.text(.9,.1,s,horizontalalignment='right',transform = plt.gca().transAxes)
+        plt.savefig('sfr-mstar-wise.pdf')
+        plt.savefig('sfr-mstar-wise.png')
+    def wise_colors(self):
+        # x is 4.6-12
+        # y is 3.4-4.6
+        # cluver+2014, figure 5, shows different regions for spirals, ellip, starburst, etc
+        # references color-color diagram of jarrett+2011
+
+        x = self.a100sdss['w2_mag'] - self.a100sdss['w3_mag']
+        y = self.a100sdss['w1_mag'] - self.a100sdss['w2_mag']
+        w1snr = np.abs(self.a100sdss['w1_nanomaggies']*np.sqrt(self.a100sdss['w1_nanomaggies_ivar']))
+        w2snr = np.abs(self.a100sdss['w2_nanomaggies']*np.sqrt(self.a100sdss['w2_nanomaggies_ivar']))
+        w3snr = np.abs(self.a100sdss['w3_nanomaggies']*np.sqrt(self.a100sdss['w3_nanomaggies_ivar']))
+
+        flag = (w1snr > 5) & (w2snr > 5) & (w3snr > 5)
+        xmin=-1
+        xmax=5
+        ymin = -.5
+        ymax=1.5
+        plt.figure(figsize=(6,4))
+        plt.subplots_adjust(bottom=.15,left=.15)
+
+        plt.hexbin(x[flag],y[flag],extent=[xmin,xmax,ymin,ymax],cmap='gray_r')
+        plt.plot(x[flag],y[flag],'k.',alpha=.1)
+        plt.xlabel('W2-W3',fontsize=12)
+        plt.ylabel('W1-W2',fontsize=12)
+        plt.axis([-1,5,-.5,1.5])
+        plt.axhline(y=.76,ls='--',color='c')
+
+    
 def paperplots():
     p.figure1()
 
@@ -595,6 +727,7 @@ if __name__ == '__main__':
     homedir = os.getenv('HOME')
     table_path = homedir+'/github/appss/tables/'
     a100 = table_path+'a100-sdss.fits'
+    a100 = table_path+'a100-sdss-wise.fits'
     a100nsa = table_path+'a100-nsa.fits'
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'

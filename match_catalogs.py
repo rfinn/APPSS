@@ -19,7 +19,7 @@ start_time = time.time()
 
 H0 = 70. # km/s/Mpc
 
-# magnitude of Sun in WISE filters
+# magnitude of Sun in WISE filter
 # from Jarrett+2013 https://iopscience.iop.org/article/10.1088/0004-6256/145/1/6
 W1_sun = 3.24
 W2_sun = 3.27
@@ -40,14 +40,14 @@ class phot_functions():
         # calc internal extinction
 
         # this is exponential fit a/b (not ba)
-        ab = self.a100sdss['expAB_r']
-        ba = 1./ab
+        ba = self.a100sdss['expAB_r']
+        #ba = 1./ab
         gamma_g = np.zeros(len(self.a100sdss[self.ref_column]))
         # only apply correction for bright galaxies
         mag_flag_g = self.a100sdss['absMag_g'] <= -17.
         # equation from paper
         gamma_g[mag_flag_g] = -0.35*self.a100sdss['absMag_g'][mag_flag_g] - 5.95
-        extinction_g = gamma_g*np.log10(1.*ba) 
+        extinction_g = -1*gamma_g*np.log10(1.*ba) 
         # correct the absolute mag for internal AND galactic extinction
         gmag_corr = self.a100sdss['cModelMag_g'] - extinction_g - self.a100sdss['extinction_g']
 
@@ -55,7 +55,7 @@ class phot_functions():
         mag_flag_i = self.a100sdss['absMag_i'] <= -17.
         # equation from paper
         gamma_i[mag_flag_i] = -0.15*self.a100sdss['absMag_i'][mag_flag_i] - 2.55
-        extinction_i = gamma_i*np.log10(1.*ba) 
+        extinction_i = -1.*gamma_i*np.log10(1.*ba) 
         # correct the absolute mag for internal AND galactic extinction
         imag_corr = self.a100sdss['cModelMag_i'] - extinction_i - self.a100sdss['extinction_i']
         gmi_corr = self.a100sdss['modelMag_g'] - extinction_g - self.a100sdss['extinction_g'] \
@@ -144,13 +144,18 @@ class wise_functions():
     def calc_wise_mstar(self):
         # calculate absolute magnitude using distance modulus formula
         Mabs_W1 =self.a100sdsswise['w1_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # if Dustin's magnitudes are AB
+        #Mabs_W1 =self.a100sdsswise['w1_mag'] - 2.699 + 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
         # Jarrett
         self.logL_W1_sun = (-0.4*(Mabs_W1 - W1_sun))
-        # from Culver+2014 
+        # from Culver+2014 https://iopscience.iop.org/article/10.1088/0004-637X/782/2/90
         log_ML = -1.96*(self.a100sdsswise['w1_mag']-self.a100sdsswise['w2_mag']) -  0.03
         # for star-forming (lower mass-to-light systems)
-        # log10(M/LW1) = -1.93*(W1-W2) - 0.04
+        # log10(M/LW1) = -1.93*(W1-W2) - 0.04 
         log_ML = -1.93*(self.a100sdsswise['w1_mag']-self.a100sdsswise['w2_mag']) -  0.04
+        # for low-z resolved sources 
+        # log10(M/LW1) = -1.93*(W1-W2) - 0.17
+        log_ML = -2.54*(self.a100sdsswise['w1_mag']-self.a100sdsswise['w2_mag']) -  0.04
         self.logMstarWise = self.logL_W1_sun + log_ML
         
         # mcgaugh stellar mass
@@ -159,13 +164,15 @@ class wise_functions():
         self.logMstarMcGaugh = np.log10(.45) +self.logL_W1_sun
         
         c1 = MaskedColumn(self.logL_W1_sun,name='logLW1')
-        c2 = MaskedColumn(self.logMstarWise,name='logMstarWise')
+        c2 = MaskedColumn(self.logMstarWise,name='logMstarCluver')
         c3 = MaskedColumn(self.logMstarMcGaugh,name='logMstarMcGaugh')
         self.a100sdsswise.add_columns([c1,c2,c3])
         
     def calc_sfr12(self):
         # cluver+2017
         Mabs_W3 =self.a100sdsswise['w3_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # if Dustin's magnitudes are AB
+        #Mabs_W3 =self.a100sdsswise['w3_mag']-5.174+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
         # Jarrett
         self.logL_W3_sun = (-0.4*(Mabs_W3 - W3_sun))
         # Cluver+2018
@@ -178,6 +185,8 @@ class wise_functions():
     def calc_sfr22(self):
         # cluver+2017
         Mabs_W4 =self.a100sdsswise['w4_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
+        # if  Dustin's magnitudes are AB
+        #Mabs_W4 =self.a100sdsswise['w4_mag'] - 6.620+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
         # Jarrett
         self.logL_W4_sun = (-0.4*(Mabs_W4 - W4_sun))
         # Cluver+2018
