@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np
 import numpy.ma as ma
 import os
@@ -16,6 +17,12 @@ from join_catalogs import make_new_cats, join_cats
 
 import time
 start_time = time.time()
+
+if homedir.find('Users') > -1:
+    # running on macbook
+    tabledir = homedir+'/github/APPSS/tables/'
+else:
+    tabledir = homedir+'/research/APPSS/tables/'
 
 H0 = 70. # km/s/Mpc
 
@@ -142,6 +149,10 @@ class phot_functions():
 
 class wise_functions():
     def calc_wise_mstar(self):
+        '''
+        from jarrett+2013, eqn 7; stellar M/L from W1-W2
+        WISE3.4μm: log(M/L)(M/L)=−0.75 + 3.42((W1−W2)−2.5log(ζ2/ζ1)),(7)
+        '''
         # calculate absolute magnitude using distance modulus formula
         Mabs_W1 =self.a100sdsswise['w1_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
         # if Dustin's magnitudes are AB
@@ -169,6 +180,11 @@ class wise_functions():
         self.a100sdsswise.add_columns([c1,c2,c3])
         
     def calc_sfr12(self):
+        '''
+        from jarrett+2013. eqn 1 and 2
+        WISEW3: SFRIR(±0.28) (Myr−1)=4.91(±0.39)×10−10νL12(L),(1)
+        WISEW4: SFRIR(±0.04) (Myr−1)=7.50(±0.07)×10−10νL22(L).
+        '''
         # cluver+2017
         Mabs_W3 =self.a100sdsswise['w3_mag']+ 5+ - 5*np.log10(self.a100sdsswise['Dist']*1.e6)
         # if Dustin's magnitudes are AB
@@ -235,7 +251,7 @@ class a100(phot_functions,wise_functions):
         self.write_joined_table()
     def get_wise(self):
         # read in unWISE photometry from Dustin
-        wisefile = homedir+'/github/APPSS/tables/a100.SDSSObjID.191001.match3.unwise.fits'
+        wisefile = tabledir+'/a100.SDSSObjID.191001.match3.unwise.fits'
         self.wise = fits.getdata(wisefile)
         self.wise = Table(self.wise)
         self.wise.rename_column('objid','unwise_objid')
@@ -245,8 +261,8 @@ class a100(phot_functions,wise_functions):
 
     def write_joined_table(self):
         # write full catalog
-        self.a100sdss.write(homedir+'/github/APPSS/tables/a100-sdss.fits',format='fits',overwrite=True)
-        self.a100sdsswise.write(homedir+'/github/APPSS/tables/a100-sdss-wise.fits',format='fits',overwrite=True)
+        self.a100sdss.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
+        self.a100sdsswise.write(tabledir+'/a100-sdss-wise.fits',format='fits',overwrite=True)
         
 class gswlc(phot_functions):
     def __init__(self, catalog):
@@ -271,17 +287,29 @@ class gswlc(phot_functions):
           - output is gswlc-A2-sdssphot.fits
         '''
         # read in gswlc-A2-sdssphot.fit catalog
-        # this is the 
+        # this is the
+        print(catalog)
         self.a100sdss = Table(fits.getdata(catalog))
-
-        self.ref_column = 'RA_1'
-        self.ref_column_objid = 'objID_2'
+        try:
+            t = self.a100sdss['RA_1']
+            self.ref_column = 'RA_1'
+        except KeyError:
+            #t = self.a100sdss['RA_1']
+            self.ref_column = 'ra_1'
+        try:
+            t = self.a100sdss['objID_2']
+            self.ref_column_objid = 'objID_2'
+        except:
+            self.ref_column_objid = 'ObjID_2'
         self.run_all()
     def run_all(self):
         # calculate column Dist and append to table
         # this is technically not the right distance to use for the GSWLC,
         # we should be using the distance in the A100 catalog, which has a flow model applied.
-        dist = self.a100sdss['Z']*3.e5/cosmo.H(0).value
+        try:
+            dist = self.a100sdss['Z']*3.e5/cosmo.H(0).value
+        except KeyError:
+            dist = self.a100sdss['z']*3.e5/cosmo.H(0).value
         c1 = Column(dist,name='Dist')
         self.a100sdss.add_column(c1)
 
@@ -296,7 +324,7 @@ class gswlc(phot_functions):
     def write_a100sdss(self):
         # write full catalog
         
-        self.a100sdss.write(homedir+'/github/APPSS/tables/gswlc-A2-sdssphot-corrected.fits',format='fits',overwrite=True)
+        self.a100sdss.write(tabledir+'/gswlc-A2-sdssphot-corrected.fits',format='fits',overwrite=True)
 
     def match2zoo(self):
         zoo = fits.getdata('/Users/rfinn/research/GalaxyZoo/GalaxyZoo1_DR_table2.fits')
@@ -382,11 +410,12 @@ class match2a100sdss():
         joined_table.add_columns([c1,c2])
         
         # write out joined a100-sdss-nsa catalog
-        joined_table.write(homedir+'/github/APPSS/tables/a100-nsa.fits',format='fits',overwrite=True)
+        joined_table.write(tabledir+'/a100-nsa.fits',format='fits',overwrite=True)
 
 
     def match_gswlc(self,gswcat):
         a100 = self.a100sdss
+        print(gswcat)
         #gsw = ascii.read(gswcat)
         self.gsw = fits.getdata(gswcat)
         # match to agc     
@@ -466,7 +495,7 @@ class match2a100sdss():
 
         
         # write out joined a100-sdss-gswlc catalog
-        joined_table.write(homedir+'/github/APPSS/tables/a100-gswlcA2.fits',format='fits',overwrite=True)
+        joined_table.write(tabledir+'/a100-gswlcA2.fits',format='fits',overwrite=True)
     def match_s4g(self,s4gcat):
         a100 = self.a100sdss
         s4g = ascii.read(s4gcat)
@@ -564,7 +593,7 @@ class match2a100sdss():
         # write joined a100sdss - s4g catalog
         
 
-        joined_table.write(homedir+'/github/APPSS/tables/a100-s4g.fits',format='fits',overwrite=True)
+        joined_table.write(tabledir+'/a100-s4g.fits',format='fits',overwrite=True)
 
 
     def plot_a100_skycoverage(self):
@@ -573,26 +602,29 @@ class match2a100sdss():
         ax.scatter(self.a100sdss['RAdeg_Use'], self.a100sdss['DECdeg_Use'])
         pass
 
+def make_a100sdss():
+    a100_file = tabledir+'/a100.HIparms.191001.csv'
+    # read in sdss phot, line-matched catalogs
+    sdss_file = tabledir+'/a100.SDSSparms.191001.csv'
+    a = a100(a100_file,sdss_file)
+
+
 if __name__ == '__main__':
-    make_a100sdss = True
-    if make_a100sdss:
-        a100_file = homedir+'/github/APPSS/tables/a100.HIparms.191001.csv'
-        # read in sdss phot, line-matched catalogs
-        sdss_file = homedir+'/github/APPSS/tables/a100.SDSSparms.191001.csv'
-        a = a100(a100_file,sdss_file)
+    make_a100sdss_flag = False
+    if make_a100sdss_flag:
         # this also creates WISE catalog
-        
-    make_gswlc_sdss = False
-    if make_gswlc_sdss:
-        gswlc_file = homedir+'/github/APPSS/tables/gswlc-A2-sdssphot.fitsvar.fits'
-        # read in sdss phot, line-matched catalogs
-        g = gswlc(gswlc_file)
+        make_a100sdss()
+    make_gswlc_sdss_flag = False
+    if make_gswlc_sdss_flag:
+            gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
+            # read in sdss phot, line-matched catalogs
+            g = gswlc(gswlc_file)
 
 
     # next part - match a100 to other catalogs
-    match2a100Flag = False
+    match2a100Flag = True
     if match2a100Flag:
-        a100sdsscat = homedir+'/github/APPSS/tables/a100-sdss.fits'
+        a100sdsscat = tabledir+'/a100-sdss.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)
 
         print('################################')
@@ -609,14 +641,14 @@ if __name__ == '__main__':
 
         # calculate internal extinction, colors, and taylor stellar mass
         
-        #gsw = homedir+'/github/APPSS/tables/gswlc-A2-withheader.dat'
-        gsw = homedir+'/github/APPSS/tables/gswlc-A2-sdssphot-corrected.fits'
+        #gsw = tabledir+'/gswlc-A2-withheader.dat'
+        gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
         a.match_gswlc(gsw)
         print('################################')
         print('\nMATCHING TO S4G \n')
         print('################################')
         # match to S4G
-        s4gcat = homedir+'/github/APPSS/tables/spitzer.s4gcat_5173.tbl'
+        s4gcat = tabledir+'/spitzer.s4gcat_5173.tbl'
         a.match_s4g(s4gcat)
 
 print("--- %s seconds ---" % (time.time() - start_time))

@@ -30,6 +30,14 @@ import sys
 gimin = -.5
 gimax =2
 
+homedir = os.getenv("HOME")
+if homedir.find('Users') > -1:
+    # running on macbook
+    tabledir = homedir+'/github/APPSS/tables/'
+else:
+    tabledir = homedir+'/research/APPSS/tables/'
+
+
 def ks(x,y,run_anderson=True):
     #D,pvalue=ks_2samp(x,y)
     D,pvalue=ks_2samp(x,y)
@@ -725,7 +733,7 @@ def paperplots():
     
 if __name__ == '__main__':
     homedir = os.getenv('HOME')
-    table_path = homedir+'/github/appss/tables/'
+    table_path = tabledir#homedir+'/github/appss/tables/'
     a100 = table_path+'a100-sdss.fits'
     a100 = table_path+'a100-sdss-wise.fits'
     a100nsa = table_path+'a100-nsa.fits'
