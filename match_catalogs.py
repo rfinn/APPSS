@@ -76,10 +76,10 @@ class phot_functions():
 
         # calculate Shao values - these do
         # https://iopscience.iop.org/article/10.1086/511131/fulltext/
-        G_Shao = self.a100sdss['absMag_g']  -(1.68*np.log10(ba)) 
-        I_Shao = self.a100sdss['absMag_i']  -(1.08*np.log10(ba))
-        gmi_Shao = self.a100sdss['modelMag_g'] -self.a100sdss['extinction_g']- 1.68*np.log10(ba) \
-           - (self.a100sdss['modelMag_i'] -self.a100sdss['extinction_i']-1.08*np.log10(ba))
+        G_Shao = self.a100sdss['absMag_g']  +(1.68*np.log10(ba)) 
+        I_Shao = self.a100sdss['absMag_i']  +(1.08*np.log10(ba))
+        gmi_Shao = self.a100sdss['modelMag_g'] -self.a100sdss['extinction_g']+ 1.68*np.log10(ba) \
+           - (self.a100sdss['modelMag_i'] -self.a100sdss['extinction_i']+1.08*np.log10(ba))
 
         #G_halfShao = absMag_i>-20.5? absMag_g : G_Shao
         #I_halfShao = absMag_i>-20.5? absMag_i : I_Shao
@@ -178,7 +178,8 @@ class wise_functions():
         c2 = MaskedColumn(self.logMstarWise,name='logMstarCluver')
         c3 = MaskedColumn(self.logMstarMcGaugh,name='logMstarMcGaugh')
         self.a100sdsswise.add_columns([c1,c2,c3])
-        
+
+
     def calc_sfr12(self):
         '''
         from jarrett+2013. eqn 1 and 2
@@ -210,6 +211,61 @@ class wise_functions():
         self.logSFR_W4 = 0.915*self.logL_W4_sun - 8.01
         c1 = MaskedColumn(self.logL_W4_sun,name='logL22')
         c2 = MaskedColumn(self.logSFR_W4,name='logSFR22')
+        self.a100sdsswise.add_columns([c1,c2])
+        
+    def calc_sfr22_ke(self):
+        wavelength_22 = 22*u.micron
+        freq_22 = c.c/wavelength_22
+
+        # need to convert W4 flux from vega magnitude to Jansky
+
+        # AB to Vega conversion is about 6 mag for W4
+        w4_ab_mag = self.a100sdsswise['w4_mag']+6.620
+        
+        # flux zp in AB mag is 3630 Jy
+        fluxzp_22_jy = 3631.*u.Jy
+        
+        self.Fnu22 = fluxzp_22_jy*10**(-1*w4_ab_mag/2.5)
+        # caculate nuFnu22
+
+        self.nuFnu22 = self.Fnu22*freq_22
+        # then calculate nu L_nu, using distance
+        
+        self.nuLnu22_ZDIST = self.nuFnu22 * 4 * np.pi * (self.a100sdsswise['Dist']*u.Mpc)**2        
+        self.logSFR_IR_KE = np.log10(self.nuLnu22_ZDIST.cgs.value)-42.69
+        c1 = MaskedColumn(self.logSFR_IR_KE,name='logSFR22_KE')
+        self.a100sdsswise.add_columns([c1])
+
+    def calc_sfrnuv_ke(self):
+        # NUV is 230 nm, according to Kennicutt & Evans
+        wavelength_NUV = 230.e-9*u.m
+        freq_NUV = c.c/wavelength_NUV
+        
+        # convert NSA NUV abs mag to nuLnu_NUV
+        #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
+        # assume ABSMAG is in AB mag, with ZP = 3631 Jy
+        flux_10pc = 3631.*10**(-1.*self.a100sdsswise['ABSMAG'][:,1]/2.5)*u.Jy
+        dist = 10.*u.pc
+        self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+
+        # correct NUV luminosity by IR flux
+        self.nuLnu_NUV_cor = self.nuLnu_NUV.cgs + 2.26*self.nuLnu22_ZDIST.cgs
+
+        self.logSFR_NUV = np.log10(self.nuLnu_NUV_cor.cgs.value) - 43.17
+        # need relation for calculating SFR from UV only
+        #
+        # eqn 12
+        # log SFR(Msun/yr) = log Lx - log Cx
+        # NUV - log Cx = 43.17
+        # 24um - logCx = 42.69
+        # Halpha - log Cx = 41.27
+        
+        self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.cgs.value) - 43.17
+        self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.cgs.value) - 43.17
+
+        # write columns out to table
+        c1 = MaskedColumn(self.logSFR_NUV_KE,name='logSFR_NUV_KE')
+        c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR2_NUVIR_KE')        
         self.a100sdsswise.add_columns([c1,c2])
 
         
@@ -246,6 +302,8 @@ class a100(phot_functions,wise_functions):
         self.calc_wise_mstar()
         self.calc_sfr12()
         self.calc_sfr22()
+        self.calc_sfr22_ke()
+        #self.calc_sfrnuv_ke()        
 
         # write out table
         self.write_joined_table()
@@ -261,7 +319,10 @@ class a100(phot_functions,wise_functions):
 
     def write_joined_table(self):
         # write full catalog
-        self.a100sdss.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
+        #self.a100sdss.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
+        # adding wise to a100+sdss tables so that we can compare WISE
+        # quantities (Mstar, SFR) with values from other tables
+        self.a100sdsswise.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
         self.a100sdsswise.write(tabledir+'/a100-sdss-wise.fits',format='fits',overwrite=True)
         
 class gswlc(phot_functions):
@@ -610,11 +671,11 @@ def make_a100sdss():
 
 
 if __name__ == '__main__':
-    make_a100sdss_flag = False
+    make_a100sdss_flag = True
     if make_a100sdss_flag:
         # this also creates WISE catalog
         make_a100sdss()
-    make_gswlc_sdss_flag = False
+    make_gswlc_sdss_flag = True
     if make_gswlc_sdss_flag:
             gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
             # read in sdss phot, line-matched catalogs
