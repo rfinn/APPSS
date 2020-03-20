@@ -18,7 +18,7 @@ from astropy.io import ascii
 from astropy import constants as c
 from astropy import units as u
 from astropy.table import Table, join
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, Angle
 from scipy.stats import ks_2samp
 plt.rcParams.update({'font.size': 14})
 
@@ -403,27 +403,34 @@ class matchedcats():
         # panel two - GSWLC Mass vs logMstarTaylor
         # panel three - S4G mstar vs logMstarTaylor
 
-        cats = [self.a100nsa, self.a100gsw, self.a100s4g]
-        xvar = ['logMstarTaylor','logMstarTaylor_1','logMstarTaylor']
-        yvar = ['SERSIC_MASS','logMstar','mstar']
-        flags = ['photFlag_gi','photFlag_gi_1','photFlag_gi']
+        cats = [self.a100nsa, self.a100gsw, self.a100s4g,self.a100nsa,self.a100nsa]
+        xvar = ['logMstarTaylor','logMstarTaylor_1','logMstarTaylor','logMstarTaylor','logMstarTaylor']
+        yvar = ['SERSIC_MASS','logMstar','mstar','logMstarCluver','logMstarMcGaugh']
+        flags = ['photFlag_gi','photFlag_gi_1','photFlag_gi','photFlag_gi','photFlag_gi']
         survey = ['$\log_{10}(NSA \ SERSIC\_MASS/M_\odot) $', \
                   '$\log_{10}(GSWLC \ Mstar/M_\odot )$', \
-                  '$\log_{10}(S4G \ Mstar/M_\odot )$']
+                  '$\log_{10}(S4G \ Mstar/M_\odot )$', \
+                  '$\log_{10}(Cluver \ Mstar/M_\odot )$',\
+                  '$\log_{10}(McGaugh \ Mstar/M_\odot )$']
         survey = ["NSA \n" r"$\rm \log_{10}(M_\star/M_\odot) $", \
                   "GSWLC \n" r"$\rm \log_{10}(M_\star/M_\odot) $", \
-                  "S4G \n " r"$\rm \log_{10}(M_\star/M_\odot) $"]
+                  "S4G \n " r"$\rm \log_{10}(M_\star/M_\odot) $", \
+                  "Cluver \n " r"$\rm \log_{10}(M_\star/M_\odot) $",\
+                  "McGaugh \n " r"$\rm \log_{10}(M_\star/M_\odot) $"
+        ]
         survey_name = [r'$\rm NSA $', \
-                  r'$\rm GSWLC  $', \
-                  r'$\rm S4G  $']
-        plt.figure(figsize=(8,6))
+                       r'$\rm GSWLC  $', \
+                       r'$\rm S4G  $',\
+                       r'$\rm Cluver $', \
+                       r'$\rm McGaugh $']
+        plt.figure(figsize=(8,8))
         plt.subplots_adjust(hspace=.0,wspace=.5,left=.15,top=.95)
         xmin=5.5
         xmax=12.5
         xl = np.linspace(xmin,xmax,100)
-        for i in np.arange(3):
+        for i in range(len(cats)):
             for j in np.arange(2):
-                plt.subplot(3,2,2*i+1+j)
+                plt.subplot(len(cats),2,2*i+1+j)
                 if j == 0:
                     ymin=xmin
                     ymax=xmax
@@ -443,29 +450,50 @@ class matchedcats():
                 x = cats[i][xvar[i]]
                 flag = flag & (x > xmin) & (x < xmax) & (y > ymin) & (y < ymax)
                 
-                if i < 2:
+                if i != 2:
                     plt.hexbin(x[flag],y[flag],cmap='gray_r', gridsize=40,vmin=1,vmax=40)
                 else:
                     plt.plot(x[flag],y[flag],'k.',alpha=.3)
                 #if i == 1:
                 #    plt.text(-.35,.5,r'$\rm  \log_{10}(M_\star/M_\odot)$',transform=plt.gca().transAxes,rotation=90,verticalalignment='center',fontsize=16)
-                if i == 2:
+                if i == len(cats)-1:
                     plt.xlabel(r'$\rm Taylor \ \log_{10}(M_\star/M_\odot)$')
-                if i < 2:
+                if i < len(cats)-1:
                     plt.xticks([])
+                else:
+                    plt.xticks(fontsize=11)
                 if j == 0:
-                    plt.ylabel(survey[i])
-                    plt.text(6,11.3,'N = %i'%(sum(flag)),fontsize=12)
+                    plt.ylabel(survey[i],fontsize=11)
+                    plt.text(6,11.3,'N = %i'%(sum(flag)),fontsize=11)
                     plt.plot(xl,xl,'k--')
+                    plt.yticks(fontsize=11)
                 elif j == 1:
                     plt.axhline(y=0, ls='--',color='k')
-                    plt.yticks(np.arange(-1,2,1))
-                    plt.ylabel(survey_name[i]+" - Taylor \n"+r"$\rm \Delta \log_{10}(M_\star/M_\odot)$")
-                    s = 'mean(std) = %.1f(%.1f)'%(np.mean(y[flag]),np.std(y[flag]))
+                    plt.yticks(np.arange(-1,2,1),fontsize=11)
+                    plt.ylabel(survey_name[i]+" - Taylor \n"+r"$\rm \Delta \log_{10}(M_\star/M_\odot)$",fontsize=11)
+                    s = 'mean(std) = %.2f(%.2f)'%(np.mean(y[flag]),np.std(y[flag]))
                     plt.text(6,-1,s,fontsize=12)
                 plt.axis([xmin,xmax,ymin,ymax])
 
         plt.savefig('mstar-comparison.pdf')
+    def compare_sfrs(self):
+        # compare IR vs UV vs IR+UV
+        # compare distribution of SFRs
+        plt.figure()
+        mybins = np.linspace(-5,1,20)
+        flag = (self.a100nsa.w4_mag > 0) & (self.a100nsa.SERSIC_ABSMAG[:,1] < 0)#(self.a100nsa.finn_index != 999999) & self.a100nsa.nsaFlag
+        #flag = self.a100nsa.nsaFlag#& (self.a100nsa.w4_nanomaggies*np.sqrt(self.a100nsa.w4_nanomaggies_ivar) > 5)
+        #flag = np.ones(len(self.a100nsa),'bool')
+        
+        print('number to plot = ',sum(flag))
+        plt.hist(self.a100nsa.logSFR_NUV_KE[flag],histtype='step',color='b',bins=mybins,label='UV')
+        
+        plt.hist(self.a100nsa.logSFR_NUVIR_KE[flag],histtype='step',color='c',bins=mybins,label='UV+IR')
+        #flag = self.a100nsa.w4_mag > 0
+        plt.hist(self.a100nsa.logSFR22_KE[flag],histtype='step',color='r',bins=mybins,label='IR')
+
+        plt.legend(loc='upper left')
+        
     def sfms(self):
         # star-forming main sequence
         
@@ -785,7 +813,21 @@ class matchedcats():
         plt.plot(xl,xl-.3,'r--',label='1:1-0.3')        
         #plt.axhline(y=.76,ls='--',color='c')
         plt.legend()
-
+    def skycoverage(self):
+        # order from largest to smallest areal coverage to largest
+        # largest - NSA, GSWLC, A100, S4G
+        a100 = SkyCoord(self.a100sdss['RAdeg_Use']*u.deg,self.a100sdss['DECdeg_Use']*u.deg,'icrs')
+        allcoords = [a100]
+        #alldec = []
+        allflag = [np.ones(len(a100),'bool')]
+        labels = ['A100']
+        fig = plt.figure(figsize=(8,6))
+        ax = fig.add_subplot(111,projection='mollweide')
+        
+        for i in range(len(a100)):
+            ra = allcoords[i].ra.radian
+            #ax.scatter(
+        
     
 def paperplots():
     p.figure1()

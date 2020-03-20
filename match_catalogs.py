@@ -214,6 +214,7 @@ class wise_functions():
         self.a100sdsswise.add_columns([c1,c2])
         
     def calc_sfr22_ke(self):
+        distance = self.a100sdsswise['Dist']#*self.a100Flag #+ self.a100sdsswisensa['ZDIST']*3.e5/70.
         wavelength_22 = 22*u.micron
         freq_22 = c.c/wavelength_22
 
@@ -231,42 +232,11 @@ class wise_functions():
         self.nuFnu22 = self.Fnu22*freq_22
         # then calculate nu L_nu, using distance
         
-        self.nuLnu22_ZDIST = self.nuFnu22 * 4 * np.pi * (self.a100sdsswise['Dist']*u.Mpc)**2        
+        self.nuLnu22_ZDIST = self.nuFnu22 * 4 * np.pi * (distance*u.Mpc)**2        
         self.logSFR_IR_KE = np.log10(self.nuLnu22_ZDIST.cgs.value)-42.69
         c1 = MaskedColumn(self.logSFR_IR_KE,name='logSFR22_KE')
         self.a100sdsswise.add_columns([c1])
 
-    def calc_sfrnuv_ke(self):
-        # NUV is 230 nm, according to Kennicutt & Evans
-        wavelength_NUV = 230.e-9*u.m
-        freq_NUV = c.c/wavelength_NUV
-        
-        # convert NSA NUV abs mag to nuLnu_NUV
-        #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
-        # assume ABSMAG is in AB mag, with ZP = 3631 Jy
-        flux_10pc = 3631.*10**(-1.*self.a100sdsswise['ABSMAG'][:,1]/2.5)*u.Jy
-        dist = 10.*u.pc
-        self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
-
-        # correct NUV luminosity by IR flux
-        self.nuLnu_NUV_cor = self.nuLnu_NUV.cgs + 2.26*self.nuLnu22_ZDIST.cgs
-
-        self.logSFR_NUV = np.log10(self.nuLnu_NUV_cor.cgs.value) - 43.17
-        # need relation for calculating SFR from UV only
-        #
-        # eqn 12
-        # log SFR(Msun/yr) = log Lx - log Cx
-        # NUV - log Cx = 43.17
-        # 24um - logCx = 42.69
-        # Halpha - log Cx = 41.27
-        
-        self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.cgs.value) - 43.17
-        self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.cgs.value) - 43.17
-
-        # write columns out to table
-        c1 = MaskedColumn(self.logSFR_NUV_KE,name='logSFR_NUV_KE')
-        c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR2_NUVIR_KE')        
-        self.a100sdsswise.add_columns([c1,c2])
 
         
 class a100(phot_functions,wise_functions):
@@ -454,7 +424,7 @@ class match2a100sdss():
         
         # join a100-sdss and nsa into one table
         joined_table = hstack([a1002,nsa2])
-
+        self.a100sdsswisensa = joined_table
         # print match statistics
         print('')
         print('OVERLAP VOLUME, AFTER MATCHING')
@@ -464,14 +434,70 @@ class match2a100sdss():
         print('number of matches between A100 and NSA = ',sum(a100_matchflag & nsa_matchflag))
         print('number in A100 but not in NSA = ',sum(a100_matchflag & ~nsa_matchflag))
         print('number in NSA but not in A100 = ',sum(~a100_matchflag & nsa_matchflag))
-        
+
         # add columns that track if galaxy is in agc and in nsa
         c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
         c2 = Column(nsa_matchflag,name='nsaFlag',dtype='i')
-        joined_table.add_columns([c1,c2])
-        
+        self.a100Flag = a100_matchflag
+        self.nsaFlag = nsa_matchflag
+        self.a100sdsswisensa.add_columns([c1,c2])
+        self.calc_sfrnuv_ke()        
         # write out joined a100-sdss-nsa catalog
-        joined_table.write(tabledir+'/a100-nsa.fits',format='fits',overwrite=True)
+        self.a100sdsswisensa.write(tabledir+'/a100-nsa.fits',format='fits',overwrite=True)
+
+    def calc_sfrnuv_ke(self):
+        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.
+        # NUV is 230 nm, according to Kennicutt & Evans
+        wavelength_NUV = 230.e-9*u.m
+        freq_NUV = c.c/wavelength_NUV
+        
+        # convert NSA NUV abs mag to nuLnu_NUV
+        #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
+        # assume ABSMAG is in AB mag, with ZP = 3631 Jy
+        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1]-self.a100sdsswisensa['EXTINCTION'][:,1])/2.5)*u.Jy
+        dist = 10.*u.pc
+        self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+        
+        # GET IR VALUES
+        wavelength_22 = 22*u.micron
+        freq_22 = c.c/wavelength_22
+        # need to convert W4 flux from vega magnitude to Jansky
+        # AB to Vega conversion is about 6 mag for W4
+        w4_ab_mag = self.a100sdsswisensa['w4_mag']+6.620
+        
+        # flux zp in AB mag is 3630 Jy
+        fluxzp_22_jy = 3631.*u.Jy
+        
+        self.Fnu22 = fluxzp_22_jy*10**(-1*w4_ab_mag/2.5)
+        # caculate nuFnu22
+        self.nuFnu22 = self.Fnu22*freq_22
+        # then calculate nu L_nu, using distance
+        self.nuLnu22_ZDIST = self.nuFnu22 * 4 * np.pi * (distance*u.Mpc)**2        
+        
+        # correct NUV luminosity by IR flux
+        myunit = self.nuLnu_NUV.unit
+        self.nuLnu_NUV_cor = np.zeros(len(self.nuLnu_NUV))*myunit
+        flag = self.a100sdsswisensa['w4_mag'] > 0.
+        #self.nuLnu_NUV_cor = self.nuLnu_NUV               
+        self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
+        self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
+
+        # need relation for calculating SFR from UV only
+        #
+        # eqn 12
+        # log SFR(Msun/yr) = log Lx - log Cx
+        # NUV - log Cx = 43.17
+        # 24um - logCx = 42.69
+        # Halpha - log Cx = 41.27
+        
+        self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.value)+np.log10(9.52141e13) - 43.17
+        self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.value)+np.log10(9.52141e13) - 43.17
+
+        # write columns out to table
+        c0 = MaskedColumn(self.nuLnu_NUV,name='nuLnu_NUV')        
+        c1 = MaskedColumn(self.logSFR_NUV_KE,name='logSFR_NUV_KE')
+        c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR_NUVIR_KE')        
+        self.a100sdsswisensa.add_columns([c0,c1,c2])
 
 
     def match_gswlc(self,gswcat):
