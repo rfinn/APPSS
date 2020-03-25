@@ -790,6 +790,7 @@ class matchfulla100():
         c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR_NUVIR_KE')        
         self.a100sdsswisensa.add_columns([c0,c1,c2])
     def match_gswlc(self,gswcat):
+        self.a100sdsswisensa = fits.getdata(tabledir+'/full-a100-sdss-wise-nsa.fits')
         a100 = self.a100sdsswisensa
         print(gswcat)
         #gsw = ascii.read(gswcat)
@@ -798,9 +799,9 @@ class matchfulla100():
         velocity1 = a100['Vhelio']
         velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
         voffset = 300.
-        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],self.gsw['RA_1'], self.gsw['DEC_1'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
+        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],self.gsw['RA_2'], self.gsw['DEC_2'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
         
-        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_1',DECkey2='DEC_1', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
+        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_2',DECkey2='DEC_2', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
     
         # print match statistics
         print('FULL CATALOGS, AFTER MATCHING')
@@ -878,7 +879,7 @@ if __name__ == '__main__':
         a100sdsscat = tabledir+'/a100-sdss.fits'
         afull = matchfulla100(a100sdsscat)
         nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'        
-        afull.match_nsa(nsacat)
+        #afull.match_nsa(nsacat)
         gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
         afull.match_gswlc(gsw)
 

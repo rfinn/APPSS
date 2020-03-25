@@ -130,6 +130,8 @@ def make_new_cats(cat1, cat2, RAkey1='RA',DECkey1='DEC',RAkey2='RA',DECkey2='DEC
     cat1_index,cat1_flag, cat2_index, cat2_flag = join_cats(cat1[RAkey1],cat1[DECkey1],cat2[RAkey2],cat2[DECkey2],maxoffset=maxoffset, velocity1=velocity1, velocity2=velocity2,maxveloffset=maxveloffset)
     #newcat1 = np.zeros(len(cat1_index),dtype=cat1.dtype)
     newcat1 = np.ma.masked_array(np.zeros(len(cat1_index),dtype=cat1.dtype))
+    cat1 = Table(cat1)
+    newcat1 = Table(newcat1)
     newcat1[cat1_flag] = cat1[cat1_index[cat1_flag]]
     newcat2 = np.ma.masked_array(np.zeros(len(cat1_index),dtype=cat2.dtype))
     cat2 = Table(cat2)

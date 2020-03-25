@@ -827,8 +827,78 @@ class matchedcats():
         for i in range(len(a100)):
             ra = allcoords[i].ra.radian
             #ax.scatter(
+
+class calibsfr():
+    def __init__(self):
+        # read in catalog that matches a100+NSA+GSWLC
+        self.cat = fits.getdata(tabledir+'/a100-sdss-wise-nsa-gswlc.fits')
+
+        self.gswflag = self.cat['logMstar'] > 0
+    def compare_mstar(self):
+
+        # plot UV+IR vs GSWLC SFR
+        # logSFR22_KE
+        # logSFR_NUV_KE
+        # logSFR_NUVIR_KE
+        ycols = ['logMstarTaylor_1','logMstarCluver','logMstarMcGaugh']
+                            
+        # GSWLC value is logSFR
+        x = self.cat['logMstar']
+        flag = (self.cat['logSFR'] > -99) & (self.cat['w1_mag'] > 0)
         
-    
+        plt.figure(figsize=(12,3.5))
+        plt.subplots_adjust(wspace=.3,bottom=.2)
+        xmin=7
+        xmax=12
+        for i in range(len(ycols)):
+            plt.subplot(1,3,i+1)
+            #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
+            plt.hexbin(x[flag],self.cat[ycols[i]][flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+            plt.xlabel('logMstar GSWLC')
+            plt.ylabel(ycols[i])
+
+            xl = np.linspace(xmin,xmax,100)
+            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            plt.axis([xmin,xmax,xmin,xmax])
+            plt.legend(loc='upper left',fontsize=10)
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.png')
+        
+        pass
+
+    def compare_sfr(self):
+
+        # logSFR22_KE
+        # logSFR_NUV_KE
+        # logSFR_NUVIR_KE
+        ycols = ['logSFR22_KE','logSFR_NUV_KE','logSFR_NUVIR_KE']
+                            
+        # GSWLC value is logSFR
+        x = self.cat['logSFR']
+        flag = (self.cat['logSFR'] > -99) & (self.cat['w4_mag'] > 0)
+        
+        plt.figure(figsize=(12,3.5))
+        plt.subplots_adjust(wspace=.3,bottom=.2)
+        xmin=-2.5
+        xmax=2.5
+        for i in range(len(ycols)):
+            plt.subplot(1,3,i+1)
+            #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
+            plt.hexbin(x[flag],self.cat[ycols[i]][flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+            plt.xlabel('logSFR GSWLC')
+            plt.ylabel(ycols[i])
+
+            xl = np.linspace(-2,2,100)
+            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            plt.axis([-2.5,2.5,-2.5,2.5])
+            plt.legend(loc='upper left',fontsize=10)
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.png')
+
 def paperplots():
     p.figure1()
 
@@ -856,3 +926,5 @@ if __name__ == '__main__':
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'
     p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
+
+    fp = calibsfr()
