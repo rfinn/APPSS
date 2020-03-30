@@ -20,6 +20,7 @@ from astropy import units as u
 from astropy.table import Table, join
 from astropy.coordinates import SkyCoord, Angle
 from scipy.stats import ks_2samp
+from scipy.optimize import curve_fit
 plt.rcParams.update({'font.size': 14})
 
 import sys
@@ -55,6 +56,14 @@ def anderson(x,y):
     print('p-value = %3.2e (prob that samples are from same distribution)'%(t[2]) )
     return t[0],t[2]
 
+def fitZPoffset(x,zp):
+    return x+zp
+
+def fitline(x,m,b):
+    return m*x+b
+
+def fitparab(x,a,b,c):
+    return a*x**2+b*x+c
 
 def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False, \
              xmin=7.9, xmax=11.6, ymin=-1.2, ymax=1.2, contour_bins = 40, ncontour_levels=5,\
@@ -841,31 +850,96 @@ class calibsfr():
         # logSFR_NUV_KE
         # logSFR_NUVIR_KE
         ycols = ['logMstarTaylor_1','logMstarCluver','logMstarMcGaugh']
-                            
+        ylabels = ['logMstar Taylor','logMstar Cluver','logMstar McGaugh']
         # GSWLC value is logSFR
         x = self.cat['logMstar']
         flag = (self.cat['logSFR'] > -99) & (self.cat['w1_mag'] > 0)
         
-        plt.figure(figsize=(12,3.5))
-        plt.subplots_adjust(wspace=.3,bottom=.2)
+        plt.figure(figsize=(12,7))
+        plt.subplots_adjust(wspace=.4,bottom=.2)
         xmin=7
         xmax=12
         for i in range(len(ycols)):
-            plt.subplot(1,3,i+1)
+            plt.subplot(2,3,i+1)
             #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
             plt.hexbin(x[flag],self.cat[ycols[i]][flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
-            plt.xlabel('logMstar GSWLC')
-            plt.ylabel(ycols[i])
+
+            plt.ylabel(ylabels[i])
 
             xl = np.linspace(xmin,xmax,100)
             plt.plot(xl,xl,'k-',lw=2,label='1:1')
-            plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
-            plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            # fit offset
+            flag2 = flag & (x > 8) & (x < 12) & (self.cat[ycols[i]] > 8) & (self.cat[ycols[i]] < 12)
+            popt,pcov = curve_fit(fitZPoffset,x[flag2],self.cat[ycols[i]][flag2])
+            plt.plot(x[flag2],fitZPoffset(x[flag2],*popt),'r-',label='fit: m=1,b=%.2f'%tuple(popt))
+            
             plt.axis([xmin,xmax,xmin,xmax])
             plt.legend(loc='upper left',fontsize=10)
+
+            # plot residuals
+            plt.subplot(2,3,i+1+3)
+            residual = self.cat[ycols[i]] - fitZPoffset(x,*popt)
+            plt.ylabel(ylabels[i]+' - fit')
+            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-1,1),gridsize=75)
+            plt.text(7.75,-.75,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
+            plt.axhline(y=0,c='k',lw=2)
+            plt.xlabel('logMstar GSWLC')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.png')
+
+    def fit_mstar(self):
+
+        # plot UV+IR vs GSWLC SFR
+        # logSFR22_KE
+        # logSFR_NUV_KE
+        # logSFR_NUVIR_KE
+        xcols = ['logMstarTaylor_1','logMstarMcGaugh','logMstarCluver']
+        xlabels = ['logMstar Taylor','logMstar McGaugh','logMstar Cluver']
+        ylabels = ['logMstar GSWLC2']
+        # GSWLC value is logSFR
+        y = self.cat['logMstar']
+        flag = (self.cat['logSFR'] > -99) & (self.cat['w1_mag'] > 0)
         
+        plt.figure(figsize=(12,7))
+        plt.subplots_adjust(wspace=.45,bottom=.2)
+        xmin=7
+        xmax=12
+        for i in range(len(xcols)):
+            x = self.cat[xcols[i]]
+            plt.subplot(2,3,i+1)
+            func = fitline
+            if i == 1:
+                func = fitparab # fit a parabola to McGaugh stellar mass
+            #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
+            plt.hexbin(x[flag],y[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+
+            plt.ylabel(ylabels[0])
+
+            xl = np.linspace(xmin,xmax,100)
+            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            # fit offset
+            flag2 = flag & (x > 8) & (x < 12) & (y > 8) & (y < 12)
+            popt,pcov = curve_fit(func,x[flag2],y[flag2])
+            plt.plot(x[flag2],func(x[flag2],*popt),'r-',label='fit: m=%.2f,b=%.2f'%tuple(popt))
+            
+            plt.axis([xmin,xmax,xmin,xmax])
+            plt.legend(loc='upper left',fontsize=10)
+
+            # plot residuals
+            plt.subplot(2,3,i+1+3)
+            residual = y - func(x,*popt)
+            plt.ylabel(ylabels[0]+' - fit')
+            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-1,1),gridsize=75)
+            plt.text(7.75,-.75,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
+            plt.axhline(y=0,c='k',lw=2)
+            plt.xlabel(xlabels[i])
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.png')
+
         pass
 
     def compare_sfr(self):
@@ -894,6 +968,13 @@ class calibsfr():
             plt.plot(xl,xl,'k-',lw=2,label='1:1')
             plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
             plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+            flag2 = flag & (x > -2) & (x < 2) & (self.cat[ycols[i]] > -2) & (self.cat[ycols[i]] < 2)
+            popt,pcov = curve_fit(fitZPoffset,x[flag2],self.cat[ycols[i]][flag2])
+            plt.plot(x[flag2],fitZPoffset(x[flag2],*popt),'r-',label='fit: m=1,b=%.2f'%tuple(popt))
+            #c = np.polyfit(x[flag],self.cat[ycols[i]][flag],1)            
+            #plt.plot(xl,np.polyval(c,xl),'r-',label='ZP offset')
+            #s = '{:.2f},{:.2f}'.format(c[0],c[1])
+            #plt.text(2,-2,s,horizontalalignment='right')
             plt.axis([-2.5,2.5,-2.5,2.5])
             plt.legend(loc='upper left',fontsize=10)
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.pdf')
