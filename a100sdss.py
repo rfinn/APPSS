@@ -849,8 +849,8 @@ class calibsfr():
         # logSFR22_KE
         # logSFR_NUV_KE
         # logSFR_NUVIR_KE
-        ycols = ['logMstarTaylor_1','logMstarCluver','logMstarMcGaugh']
-        ylabels = ['logMstar Taylor','logMstar Cluver','logMstar McGaugh']
+        ycols = ['logMstarTaylor_1','logMstarMcGaugh', 'logMstarCluver']
+        ylabels = ['logMstar Taylor','logMstar McGaugh','logMstar Cluver']
         # GSWLC value is logSFR
         x = self.cat['logMstar']
         flag = (self.cat['logSFR'] > -99) & (self.cat['w1_mag'] > 0)
@@ -924,10 +924,14 @@ class calibsfr():
             # fit offset
             flag2 = flag & (x > 8) & (x < 12) & (y > 8) & (y < 12)
             popt,pcov = curve_fit(func,x[flag2],y[flag2])
-            plt.plot(x[flag2],func(x[flag2],*popt),'r-',label='fit: m=%.2f,b=%.2f'%tuple(popt))
+            if i == 1:
+                s = 'a=%.2f,b=%.2f,c=%.2f'%tuple(popt)
+            else:
+                s = 'a=%.2f,b=%.2f'%tuple(popt)
+            plt.plot(xl,func(xl,*popt),'r-',label=s)
             
             plt.axis([xmin,xmax,xmin,xmax])
-            plt.legend(loc='upper left',fontsize=10)
+            plt.legend(loc='lower right',fontsize=10)
 
             # plot residuals
             plt.subplot(2,3,i+1+3)
@@ -937,10 +941,68 @@ class calibsfr():
             plt.text(7.75,-.75,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
             plt.axhline(y=0,c='k',lw=2)
             plt.xlabel(xlabels[i])
-        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.pdf')
-        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-mstar-comparison.png')
+        plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.png')
 
-        pass
+    def fit2_mstar_taylor(self):
+        # fit unwise stellar masses to taylor
+        # this might be better because we have taylor stellar masses
+        # for most of a100, whereas GSWLC is going to be biased toward
+        # higher stellar mass
+        xcols = ['logMstarMcGaugh','logMstarCluver']
+        xlabels = ['logMstar McGaugh','logMstar Cluver']
+        ylabels = ['logMstar Taylor']        
+        # GSWLC value is logSFR
+        y = self.cat['logMstarTaylor_1']
+        flag =  (self.cat['w1_mag'] > 0)
+        plt.figure(figsize=(10,7))
+        plt.subplots_adjust(wspace=.45,bottom=.2)
+        xmin=7
+        xmax=12
+        for i in range(len(xcols)):
+            x = self.cat[xcols[i]]
+            plt.subplot(2,2,i+1)
+            func = fitline
+            if i == 0:
+                func = fitparab # fit a parabola to McGaugh stellar mass
+            #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
+            plt.hexbin(x[flag],y[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+
+            plt.ylabel(ylabels[0])
+
+            xl = np.linspace(xmin,xmax,100)
+            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            offset=-.3
+            if i == 1:
+                plt.plot(xl,xl-.3,'r--',lw=1,label='1:1+{:.1f}'.format(offset))
+            # fit offset
+            flag2 = flag & (x > 8) & (x < 12) & (y > 8) & (y < 12)
+            popt,pcov = curve_fit(func,x[flag2],y[flag2])
+            if i == 0:
+                s = 'a=%.2f,b=%.2f,c=%.2f'%tuple(popt)
+            else:
+                s = 'a=%.2f,b=%.2f'%tuple(popt)
+            plt.plot(xl,func(xl,*popt),'r-',label=s)
+            
+            plt.axis([xmin,xmax,xmin,xmax])
+            plt.legend(loc='lower right',fontsize=10)
+
+            # plot residuals
+            plt.subplot(2,2,i+1+2)
+            if i == 1:
+                residual = y - (x + offset)
+            else:
+                residual = y - func(x,*popt)
+            plt.ylabel(ylabels[0]+' - fit')
+            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-1,1),gridsize=75)
+            plt.text(7.75,-.75,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
+            plt.axhline(y=0,c='k',lw=2)
+            plt.xlabel(xlabels[i])
+        plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2taylor.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2taylor.png')
+
+
 
     def compare_sfr(self):
 
