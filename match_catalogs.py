@@ -292,7 +292,7 @@ class a100(phot_functions,wise_functions):
         #self.a100sdss.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
         # adding wise to a100+sdss tables so that we can compare WISE
         # quantities (Mstar, SFR) with values from other tables
-        self.a100sdsswise.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
+        self.a100sdss.write(tabledir+'/a100-sdss.fits',format='fits',overwrite=True)
         self.a100sdsswise.write(tabledir+'/a100-sdss-wise.fits',format='fits',overwrite=True)
         
 class gswlc(phot_functions):
@@ -832,7 +832,7 @@ def make_a100sdss():
 
 
 if __name__ == '__main__':
-    make_a100sdss_flag = False
+    make_a100sdss_flag = True
     if make_a100sdss_flag:
         # this also creates WISE catalog
         make_a100sdss()
@@ -872,7 +872,7 @@ if __name__ == '__main__':
         # match to S4G
         s4gcat = tabledir+'/spitzer.s4gcat_5173.tbl'
         a.match_s4g(s4gcat)
-    make_fulla100_flag = True
+    make_fulla100_flag = False
     if make_fulla100_flag:
         # this matches NSA to the full a100 and saves the resulting table
         # as opposed to matching to the restricted overlap region only

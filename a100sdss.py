@@ -1041,6 +1041,67 @@ class calibsfr():
             plt.legend(loc='upper left',fontsize=10)
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.png')
+    def fit_sfr(self):
+
+        # logSFR22_KE
+        # logSFR_NUV_KE
+        # logSFR_NUVIR_KE
+        xcols = ['logSFR22_KE','logSFR_NUV_KE','logSFR_NUVIR_KE']
+        xlabels = ['logSFR22_KE','logSFR_NUV_KE','logSFR_NUVIR_KE']        
+        ylabels = ['logSFR GSWLC']
+        # GSWLC value is logSFR
+        y = self.cat['logSFR']
+        flag = (self.cat['logSFR'] > -99) & (self.cat['w4_mag'] > 0)& (self.cat['SERSIC_ABSMAG'][:,1] < 0)
+        plt.figure(figsize=(12,7))
+        plt.subplots_adjust(wspace=.45,bottom=.2)
+        xmin=-2.5
+        xmax=2.5
+        for i in range(len(xcols)):
+            x = self.cat[xcols[i]]
+            #func = fitZPoffset
+            func = fitline
+            plt.subplot(2,3,i+1)
+            #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
+            plt.hexbin(x[flag],y[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+
+
+
+            xl = np.linspace(-2,2,100)
+            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
+            #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
+
+            if i == 0:
+                minfit = -1
+                maxfit = 0.5
+            elif i == 1:
+                minfit = -1.5
+                maxfit = 0.2
+            elif i == 2:
+                minfit = -1
+                maxfit = 1.5
+            flag2 = flag & (x > minfit) & (x < maxfit) & (y > minfit) & (y < maxfit)
+            popt,pcov = curve_fit(func,x[flag2],y[flag2])
+            #s = 'fit: a=1,b=%.2f'%tuple(popt)
+            s = 'a=%.2f,b=%.2f'%tuple(popt)            
+            plt.plot(xl,func(xl,*popt),'r-',label=s)
+            #c = np.polyfit(x[flag],self.cat[ycols[i]][flag],1)            
+            #plt.plot(xl,np.polyval(c,xl),'r-',label='ZP offset')
+            #s = '{:.2f},{:.2f}'.format(c[0],c[1])
+            #plt.text(2,-2,s,horizontalalignment='right')
+            plt.axis([-2.5,2.5,-2.5,2.5])
+            plt.legend(loc='upper left',fontsize=10)
+            
+            plt.subplot(2,3,i+1+3)
+            residual = y - func(x,*popt)
+            plt.ylabel(ylabels[0]+' - fit')
+            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-2,2),gridsize=75)
+            plt.text(-2,-2,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
+            plt.axhline(y=0,c='k',lw=2)
+            plt.xlabel(xlabels[i])
+            
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.png')
 
 def paperplots():
     p.figure1()
