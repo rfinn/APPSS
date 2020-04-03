@@ -12,6 +12,8 @@ import astropy.units as u
 ### FUNCTIONS
 #######################################
 a100color='b'
+overlapcolor='deepskyblue'
+overlapcolor='magenta'
 def plota100():
     # A100 polygons
     a100_vert_spring = np.array([[110,0],
@@ -68,7 +70,7 @@ def plotoverlapNSA():
     xcomp = np.array([140,230])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([36.,36.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=a100color,alpha=1,label='Overlap')
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=2)
     #plt.plot(comparison_vert[:,0],comparison_vert[:.1],'c-')
     # plot NSA
     #ax.set_xticklabels(['14h','16h','18h','20h','22h','0h','2h','4h','6h','8h','10h'])
@@ -95,15 +97,15 @@ def plotoverlapS4G():
     xcomp = np.array([140,230])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([35.,35.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=a100color,alpha=1,label='Overlap')
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=2)
     xcomp = np.array([0,30])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([20.,20.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=a100color,alpha=1,label='_nolegend_')
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=2)
     xcomp = np.array([330,360])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([20.,20.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=a100color,alpha=1,label='_nolegend_')
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=2)
 
 #######################################
 ### READ IN CATALOGS
@@ -113,18 +115,20 @@ gsw = ascii.read('/home/rfinn/research/GSWLC/GSWLC-A2.dat')
 s4g = ascii.read('/home/rfinn/research/APPSS/tables/spitzer.s4gcat_5173.tbl')
 a100 = fits.getdata('/home/rfinn/research/APPSS/tables/a100-sdss.fits')
 
+plotdir = '/home/rfinn/research/APPSS/plots/'
 # keep cz < 15000 km/s
 nsa = nsa[nsa['Z']*3.e5 < 15000]
 gsw = gsw[gsw['Z']*3.e5 < 15000]
 s4g = s4g[s4g['vopt'] < 15000]
 
 
-fig = plt.figure(figsize=(10,10))
+fig = plt.figure(figsize=(8,10))
 ax = fig.add_subplot(111)#, projection='lambert')
 
 all_ra = [nsa['RA'],gsw['RA'],a100['RAdeg_Use'],s4g['ra']]
 all_dec = [nsa['DEC'],gsw['DEC'],a100['DECdeg_Use'],s4g['dec']]
 labels = ['NSA','GSWLC','A100','S4G']
+titles = ['(a) NSA','(b) GSWLC','A100','(c) S4G']
 myorder = [0,1,3]
 #myorder = [1]
 mycolors = ['k','0.7','b','r']
@@ -136,7 +140,7 @@ mycolors = ['k','k','c','k']
 #######################################
 
 nsubplot = 1
-plt.subplots_adjust(hspace=.05)
+plt.subplots_adjust(hspace=.2)
 for i in myorder:
     plt.subplot(3,1,nsubplot)
     if i == 3:
@@ -153,9 +157,14 @@ for i in myorder:
     else:
         print('got here')
         flag = np.random.randint(0,len(ra),int(len(ra)/2))
+        plt.scatter(ra.degree[flag], dec.degree[flag],label='_nolegend_',s=3,c=mycolors[i],alpha=.05)
+        # OR
         plt.scatter(ra.degree[flag][0], dec.degree[flag][0],label=labels[i],s=3,c=mycolors[i])
-        plt.hexbin(ra.degree, dec.degree,label='_nolegend_',extent=(0,360,-90,90),cmap='gray_r',gridsize=(100,50),vmin=1,vmax=100)        
+        # don't like the hexbin
+        #plt.hexbin(ra.degree, dec.degree,label='_nolegend_',extent=(0,360,-90,90),cmap='gray_r',gridsize=(100,50),vmin=1,vmax=100)        
     plota100()
+    props = dict(boxstyle='square', facecolor='w', alpha=0.5)
+    plt.text(0.02,.85,titles[i],fontsize=16,horizontalalignment='left',transform=plt.gca().transAxes,bbox=props)
     if i == 0:
         plotoverlapNSA()
     elif i == 1:
@@ -166,11 +175,12 @@ for i in myorder:
     plt.axis([-10,370,-95,95])
     plt.grid(True)
     if i < 3:
-        plt.gca().set_xticklabels([])
+        #plt.gca().set_xticklabels([])
+        pass
                      
     plt.legend(loc='lower center')#markerscale=2,ncol=2,fontsize=12)
     plt.ylabel('$DEC \ (deg)$',fontsize=20)
     nsubplot += 1
-plt.savefig('surveys-skyplot.pdf')
+plt.savefig(plotdir+'surveys-skyplot.pdf')
 
         
