@@ -234,8 +234,12 @@ class wise_functions():
         
         self.nuLnu22_ZDIST = self.nuFnu22 * 4 * np.pi * (distance*u.Mpc)**2        
         self.logSFR_IR_KE = np.log10(self.nuLnu22_ZDIST.cgs.value)-42.69
+
+        
         c1 = MaskedColumn(self.logSFR_IR_KE,name='logSFR22_KE')
+        #c2 = MaskedColumn(self.logSFR_IR_KE,name='logSFR22_KE_err')        
         self.a100sdsswise.add_columns([c1])
+
 
 
         
