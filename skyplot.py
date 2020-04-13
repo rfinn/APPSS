@@ -11,9 +11,14 @@ import astropy.units as u
 #######################################
 ### FUNCTIONS
 #######################################
-a100color='b'
+a100color='#0F2080'
 overlapcolor='deepskyblue'
 overlapcolor='magenta'
+
+overlapcolor='#F5793A'
+densecolor = '#85C0F9'
+
+
 def plota100():
     # A100 polygons
     a100_vert_spring = np.array([[110,0],
@@ -58,7 +63,7 @@ def plota100():
             mylabel='A100'
         else:
             mylabel='_nolegend_'
-        plt.plot(allvert[i][:,0],allvert[i][:,1],'c-',color=a100color,lw=2.5,label=mylabel)
+        plt.plot(allvert[i][:,0],allvert[i][:,1],'c--',color=a100color,lw=2.5,label=mylabel)
 
 def plotoverlapNSA():
     comparison_vert = np.array([[140,0],
@@ -70,7 +75,7 @@ def plotoverlapNSA():
     xcomp = np.array([140,230])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([36.,36.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=2)
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=3)
     #plt.plot(comparison_vert[:,0],comparison_vert[:.1],'c-')
     # plot NSA
     #ax.set_xticklabels(['14h','16h','18h','20h','22h','0h','2h','4h','6h','8h','10h'])
@@ -97,15 +102,15 @@ def plotoverlapS4G():
     xcomp = np.array([140,230])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([35.,35.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=2)
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='Overlap',lw=3)
     xcomp = np.array([0,30])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([20.,20.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=2)
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=3)
     xcomp = np.array([330,360])
     ycomp1 = np.array([0,0])
     ycomp2 = np.array([20.,20.])
-    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=2)
+    plt.fill_between(xcomp,ycomp2,y2=ycomp1,facecolor="none",hatch='XX',edgecolor=overlapcolor,alpha=1,label='_nolegend_',lw=3)
 
 #######################################
 ### READ IN CATALOGS
@@ -132,7 +137,7 @@ titles = ['(a) NSA','(b) GSWLC','A100','(c) S4G']
 myorder = [0,1,3]
 #myorder = [1]
 mycolors = ['k','0.7','b','r']
-mycolors = ['k','k','c','k']
+mycolors = [densecolor,densecolor,'c',densecolor]
 
 # make a three-panel plot instead of plotting surveys on top of each other
 #######################################

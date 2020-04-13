@@ -25,6 +25,14 @@ plt.rcParams.update({'font.size': 14})
 
 import sys
 
+#####################################
+## COLORBLIND FRIENDLY COLOR PALETTE
+#####################################
+colorblind1='#F5793A' # orange
+colorblind2 = '#85C0F9' # light blue
+colorblind3='#0F2080' # dark blue
+
+
 ## some plot parameters
 
 # max and min for g-i plots
@@ -67,7 +75,7 @@ def fitparab(x,a,b,c):
 
 def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False, \
              xmin=7.9, xmax=11.6, ymin=-1.2, ymax=1.2, contour_bins = 40, ncontour_levels=5,\
-             xlabel='$\log_{10}(M_\star/M_\odot) $', ylabel='$(g-i)_{corrected} $', color2='c',\
+              xlabel='$\log_{10}(M_\star/M_\odot) $', ylabel='$(g-i)_{corrected} $', color1=colorblind3, color2=colorblind1,\
              nhistbin=50, alphagray=.1):
     fig = plt.figure(figsize=(8,8))
     nrow = 4
@@ -224,10 +232,10 @@ def colormag(mag, color, ab, ylabel):
     limits = [-23.9, -14.1, -.5, 1.9]
     flag = ab > 0.8
     #plt.hexbin(mag[flag],color[flag], extent=limits, cmap='gray_r', vmin=0,vmax=45)
-    plt.plot(mag[flag],color[flag],'k.',alpha=.2, markersize=3, label='$B/A > 0.8$')
+    plt.plot(mag[flag],color[flag],'k.',alpha=.2, markersize=3, label='$B/A > 0.8$',color=colorblind3)
     flag = ab < 0.3
     #plt.hexbin(mag[flag],color[flag], extent=limits, cmap='Purples_r', vmin=0,vmax=45)
-    plt.plot(mag[flag],color[flag],'c.',alpha=.2,markersize=3,label='$B/A < 0.3$')
+    plt.plot(mag[flag],color[flag],'c.',color=colorblind2, alpha=.2,markersize=3,label='$B/A < 0.3$')
     plt.axis(limits)
     plt.xticks(np.arange(-23,-14,2))
     plt.gca().invert_xaxis()
@@ -258,8 +266,7 @@ class matchedcats():
         
         plt.subplot(1,3,2)
         photflag = self.a100sdss['photFlag_gi'] == 1
-        colormag(self.a100sdss['I_Shao'][photflag], self.a100sdss['gmi_Shao'][photflag],
-        self.a100sdss['expAB_g'][photflag],'${Shao\ et\ al. \ 2007}$')
+        colormag(self.a100sdss['I_Shao'][photflag], self.a100sdss['gmi_Shao'][photflag],self.a100sdss['expAB_g'][photflag],'${Shao\ et\ al. \ 2007}$')
         plt.yticks(())
         ax = plt.gca()
 
@@ -497,9 +504,9 @@ class matchedcats():
         print('number to plot = ',sum(flag))
         plt.hist(self.a100nsa.logSFR_NUV_KE[flag],histtype='step',color='b',bins=mybins,label='UV')
         
-        plt.hist(self.a100nsa.logSFR_NUVIR_KE[flag],histtype='step',color='c',bins=mybins,label='UV+IR')
+        plt.hist(self.a100nsa.logSFR_NUVIR_KE[flag],histtype='step',color=colorblind2,bins=mybins,label='UV+IR')
         #flag = self.a100nsa.w4_mag > 0
-        plt.hist(self.a100nsa.logSFR22_KE[flag],histtype='step',color='r',bins=mybins,label='IR')
+        plt.hist(self.a100nsa.logSFR22_KE[flag],histtype='step',color=colorblind3,bins=mybins,label='IR')
 
         plt.legend(loc='upper left')
         

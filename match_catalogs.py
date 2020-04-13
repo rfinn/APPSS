@@ -258,7 +258,7 @@ class a100(phot_functions,wise_functions):
         self.s = ascii.read(sdss_catalog,format='csv')
         # join cats
         self.a100sdss = join(self.a,self.s,keys='AGC')
-
+        print('number of rows in a100 table AFTER joining HI and SDSS params = ',len(self.a100sdss))
         # now calculate quantities that we use in our paper
         self.ref_column = 'ra'
         self.ref_column_objid = 'objID'
@@ -284,6 +284,8 @@ class a100(phot_functions,wise_functions):
     def get_wise(self):
         # read in unWISE photometry from Dustin
         wisefile = tabledir+'/a100.SDSSObjID.191001.match3.unwise.fits'
+        # removed the duplicates in the unWISE catalog
+        wisefile = tabledir+'/a100.SDSSObjID.191001.match3.unwise-cleaned.fits'        
         self.wise = fits.getdata(wisefile)
         self.wise = Table(self.wise)
         self.wise.rename_column('objid','unwise_objid')
@@ -820,9 +822,9 @@ class matchfulla100():
         joined_table = hstack([a1002,gsw2])
         
         # add columns that track if galaxy is in agc and in nsa
-        c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
+        #c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
         c2 = Column(gsw_matchflag,name='gswFlag',dtype='i')
-        joined_table.add_columns([c1,c2])
+        joined_table.add_columns([c2])
         
         # write out joined a100-sdss-gswlc catalog
         joined_table.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2.fits',format='fits',overwrite=True)
@@ -832,11 +834,12 @@ def make_a100sdss():
     a100_file = tabledir+'/a100.HIparms.191001.csv'
     # read in sdss phot, line-matched catalogs
     sdss_file = tabledir+'/a100.SDSSparms.191001.csv'
+    sdss_file = tabledir+'/a100.code12.SDSSvalues200406.csv'    
     a = a100(a100_file,sdss_file)
 
 
 if __name__ == '__main__':
-    make_a100sdss_flag = True
+    make_a100sdss_flag = False
     if make_a100sdss_flag:
         # this also creates WISE catalog
         make_a100sdss()
@@ -850,7 +853,7 @@ if __name__ == '__main__':
     # next part - match a100 to other catalogs
     match2a100Flag = False
     if match2a100Flag:
-        a100sdsscat = tabledir+'/a100-sdss.fits'
+        a100sdsscat = tabledir+'/a100-sdss-wise.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)
 
         print('################################')
@@ -876,15 +879,18 @@ if __name__ == '__main__':
         # match to S4G
         s4gcat = tabledir+'/spitzer.s4gcat_5173.tbl'
         a.match_s4g(s4gcat)
-    make_fulla100_flag = False
+    make_fulla100_flag = True
     if make_fulla100_flag:
         # this matches NSA to the full a100 and saves the resulting table
         # as opposed to matching to the restricted overlap region only
-        a100sdsscat = tabledir+'/a100-sdss.fits'
+        # I think I am doing this so I can match to LCS or Virgo
+        a100sdsscat = tabledir+'/a100-sdss-wise.fits'
         afull = matchfulla100(a100sdsscat)
+        print('matching full a100 to full NSA')
         nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'        
-        #afull.match_nsa(nsacat)
-        gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
-        afull.match_gswlc(gsw)
+        afull.match_nsa(nsacat)
+        #print('matching full a100 to full GSWLC')        
+        #gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
+        #afull.match_gswlc(gsw)
 
 print("--- %s seconds ---" % (time.time() - start_time))
