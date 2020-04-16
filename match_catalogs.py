@@ -452,7 +452,9 @@ class match2a100sdss():
         self.a100sdsswisensa.write(tabledir+'/a100-nsa.fits',format='fits',overwrite=True)
 
     def calc_sfrnuv_ke(self):
-        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.
+        # distance is a100 Distance when available
+        # otherwise use SDSS NSA ZDIST
+        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
         # NUV is 230 nm, according to Kennicutt & Evans
         wavelength_NUV = 230.e-9*u.m
         freq_NUV = c.c/wavelength_NUV
@@ -460,9 +462,17 @@ class match2a100sdss():
         # convert NSA NUV abs mag to nuLnu_NUV
         #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
         # assume ABSMAG is in AB mag, with ZP = 3631 Jy
-        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1]-self.a100sdsswisensa['EXTINCTION'][:,1])/2.5)*u.Jy
+        # *** need to correct ABSMAG to H0=70  ****
+        # NSA magnitudes are already corrected for galactic extinction
+        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
         dist = 10.*u.pc
         self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+        # calculate using A100 distances
+        nuv_mag = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
+        fnu_nuv = 3631*10**(-1*nuv_mag/2.5)*u.Jy
+        self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
+
+
         
         # GET IR VALUES
         wavelength_22 = 22*u.micron
@@ -737,13 +747,16 @@ class matchfulla100():
         self.a100sdsswisensa.add_columns([c1,c2])
         self.calc_sfrnuv_ke()
 
-        # match to GSWLC
+        # keep only a100 galaxies
+
+    
         
         # write out joined a100-sdss-nsa catalog
-        self.a100sdsswisensa.write(tabledir+'/full-a100-sdss-wise-nsa.fits',format='fits',overwrite=True)
+        # keep a100 galaxies only
+        self.a100sdsswisensa[a100_matchflag].write(tabledir+'/full-a100-sdss-wise-nsa.fits',format='fits',overwrite=True)
 
     def calc_sfrnuv_ke(self):
-        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.
+        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
         # NUV is 230 nm, according to Kennicutt & Evans
         wavelength_NUV = 230.e-9*u.m
         freq_NUV = c.c/wavelength_NUV
@@ -751,9 +764,17 @@ class matchfulla100():
         # convert NSA NUV abs mag to nuLnu_NUV
         #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
         # assume ABSMAG is in AB mag, with ZP = 3631 Jy
-        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1]-self.a100sdsswisensa['EXTINCTION'][:,1])/2.5)*u.Jy
+        # NSA magnitudes are already corrected for galactic extinction
+        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
+        # adjust Hubble constant from 100 to 70
+        flux_10pc 
         dist = 10.*u.pc
         self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+        # calculate using A100 distances
+        nuv_mag = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
+        fnu_nuv = 3631*10**(-1*nuv_mag/2.5)*u.Jy
+        self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
+
         
         # GET IR VALUES
         wavelength_22 = 22*u.micron
@@ -797,15 +818,22 @@ class matchfulla100():
         self.a100sdsswisensa.add_columns([c0,c1,c2])
     def match_gswlc(self,gswcat):
         self.a100sdsswisensa = fits.getdata(tabledir+'/full-a100-sdss-wise-nsa.fits')
-        a100 = self.a100sdsswisensa
+        a100 = Table(self.a100sdsswisensa)
+        # add column with NSA ra if it exists, otherwise RAdeg_Use
+        nsaFlag = a100['nsaFlag'] == 1
+        bestra = a100['RA']*nsaFlag + a100['RAdeg_Use']*~nsaFlag
+        bestdec = a100['DEC']*nsaFlag + a100['DECdeg_Use']*~nsaFlag        
+        c1 = Column(bestra,'bestRA')
+        c2 = Column(bestdec,'bestDEC')
+        a100.add_columns([c1,c2])
         print(gswcat)
         #gsw = ascii.read(gswcat)
-        self.gsw = fits.getdata(gswcat)
+        self.gsw = Table(fits.getdata(gswcat))
         # match to agc     
         velocity1 = a100['Vhelio']
         velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
         voffset = 300.
-        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['RAdeg_Use'],a100['DECdeg_Use'],self.gsw['RA_2'], self.gsw['DEC_2'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
+        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['bestRA'],a100['bestDEC'],self.gsw['RA_2'], self.gsw['DEC_2'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
         
         a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_2',DECkey2='DEC_2', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
     
@@ -817,19 +845,23 @@ class matchfulla100():
         print('number of matches between A100 and GSWLC-A2 = ',sum(a100_matchflag & gsw_matchflag))
         print('number in A100 but not in GSWLC-A2 = ',sum(a100_matchflag & ~gsw_matchflag))
         print('number in GSWLC but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
-
+        # write out temp files
+        #print('writing joined tables in two pieces ')
+        #a1002.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-left.fits',format='fits',overwrite=True)
+        #gsw2.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-right.fits',format='fits',overwrite=True)
+        print('Trying to join a1002 and gsw2')
         # join a100-sdss and nsa into one table
-        joined_table = hstack([a1002,gsw2])
+        joined_table = hstack([a1002[a100_matchflag],gsw2[a100_matchflag]])
         
         # add columns that track if galaxy is in agc and in nsa
         #c1 = Column(a100_matchflag,name='a100Flag',dtype='i')
-        c2 = Column(gsw_matchflag,name='gswFlag',dtype='i')
+        c2 = Column(gsw_matchflag[a100_matchflag],name='gswFlag',dtype='i')
         joined_table.add_columns([c2])
         
         # write out joined a100-sdss-gswlc catalog
-        joined_table.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2.fits',format='fits',overwrite=True)
+        joined_table.write(tabledir+'/full-a100-sdss-wise-nsa-gswlcA2.fits',format='fits',overwrite=True)
         
-        pass
+
 def make_a100sdss():
     a100_file = tabledir+'/a100.HIparms.191001.csv'
     # read in sdss phot, line-matched catalogs
@@ -839,11 +871,11 @@ def make_a100sdss():
 
 
 if __name__ == '__main__':
-    make_a100sdss_flag = False
+    make_a100sdss_flag = True
     if make_a100sdss_flag:
         # this also creates WISE catalog
         make_a100sdss()
-    make_gswlc_sdss_flag = False
+    make_gswlc_sdss_flag = True
     if make_gswlc_sdss_flag:
             gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
             # read in sdss phot, line-matched catalogs
@@ -851,7 +883,7 @@ if __name__ == '__main__':
 
 
     # next part - match a100 to other catalogs
-    match2a100Flag = False
+    match2a100Flag = True
     if match2a100Flag:
         a100sdsscat = tabledir+'/a100-sdss-wise.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)
@@ -890,7 +922,7 @@ if __name__ == '__main__':
         nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'        
         afull.match_nsa(nsacat)
         #print('matching full a100 to full GSWLC')        
-        #gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
-        #afull.match_gswlc(gsw)
+        gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
+        afull.match_gswlc(gsw)
 
 print("--- %s seconds ---" % (time.time() - start_time))

@@ -20,7 +20,7 @@ from astropy import units as u
 from astropy.table import Table, join
 from astropy.coordinates import SkyCoord, Angle
 from scipy.stats import ks_2samp
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
 plt.rcParams.update({'font.size': 14})
 
 import sys
@@ -70,6 +70,8 @@ def fitZPoffset(x,zp):
 def fitline(x,m,b):
     return m*x+b
 
+def fitline_error(x,m,b,y):
+    pass
 def fitparab(x,a,b,c):
     return a*x**2+b*x+c
 
@@ -420,6 +422,7 @@ class matchedcats():
         # panel three - S4G mstar vs logMstarTaylor
 
         cats = [self.a100nsa, self.a100gsw, self.a100s4g,self.a100nsa,self.a100nsa]
+
         xvar = ['logMstarTaylor','logMstarTaylor_1','logMstarTaylor','logMstarTaylor','logMstarTaylor']
         yvar = ['SERSIC_MASS','logMstar','mstar','logMstarCluver','logMstarMcGaugh']
         flags = ['photFlag_gi','photFlag_gi_1','photFlag_gi','photFlag_gi','photFlag_gi']
@@ -847,7 +850,7 @@ class matchedcats():
 class calibsfr():
     def __init__(self):
         # read in catalog that matches a100+NSA+GSWLC
-        self.cat = fits.getdata(tabledir+'/a100-sdss-wise-nsa-gswlc.fits')
+        self.cat = fits.getdata(tabledir+'/a100-sdss-wise-nsa-gswlcA2.fits')
 
         self.gswflag = self.cat['logMstar'] > 0
     def compare_mstar(self):
@@ -878,8 +881,10 @@ class calibsfr():
             #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
             #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
             # fit offset
+            # initial guess
+            p0 = np.array([1,0])
             flag2 = flag & (x > 8) & (x < 12) & (self.cat[ycols[i]] > 8) & (self.cat[ycols[i]] < 12)
-            popt,pcov = curve_fit(fitZPoffset,x[flag2],self.cat[ycols[i]][flag2])
+            popt,pcov = curve_fit(fitZPoffset,x[flag2],self.cat[ycols[i]][flag2],p0=p0, method='dogbox')
             plt.plot(x[flag2],fitZPoffset(x[flag2],*popt),'r-',label='fit: m=1,b=%.2f'%tuple(popt))
             
             plt.axis([xmin,xmax,xmin,xmax])
@@ -903,8 +908,9 @@ class calibsfr():
         # logSFR_NUV_KE
         # logSFR_NUVIR_KE
         xcols = ['logMstarTaylor_1','logMstarMcGaugh','logMstarCluver']
-        xlabels = ['logMstar Taylor','logMstar McGaugh','logMstar Cluver']
+        xlabels = ['$\log_{10}(M_\star/M_\odot)\ Taylor$','$\log_{10}(M_\star/M_\odot)\  McGaugh$','$\log_{10}(M_\star/M_\odot)\ Cluver$']
         ylabels = ['logMstar GSWLC2']
+        ylabels = ['$\log_{10}(M_\star/M_\odot) \ GSWLC2 $']        
         # GSWLC value is logSFR
         y = self.cat['logMstar']
         flag = (self.cat['logSFR'] > -99) & (self.cat['w1_mag'] > 0)
@@ -925,7 +931,7 @@ class calibsfr():
             plt.ylabel(ylabels[0])
 
             xl = np.linspace(xmin,xmax,100)
-            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            plt.plot(xl,xl,'k-',lw=3,label='1:1',color=colorblind2)
             #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
             #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
             # fit offset
@@ -935,7 +941,7 @@ class calibsfr():
                 s = 'a=%.2f,b=%.2f,c=%.2f'%tuple(popt)
             else:
                 s = 'a=%.2f,b=%.2f'%tuple(popt)
-            plt.plot(xl,func(xl,*popt),'r-',label=s)
+            plt.plot(xl,func(xl,*popt),'r-',label=s,color=colorblind1,lw=3)
             
             plt.axis([xmin,xmax,xmin,xmax])
             plt.legend(loc='lower right',fontsize=10)
@@ -943,10 +949,11 @@ class calibsfr():
             # plot residuals
             plt.subplot(2,3,i+1+3)
             residual = y - func(x,*popt)
-            plt.ylabel(ylabels[0]+' - fit')
+            #plt.ylabel(ylabels[0]+' - fit')
+            plt.ylabel('$residual$')            
             plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-1,1),gridsize=75)
             plt.text(7.75,-.75,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
-            plt.axhline(y=0,c='k',lw=2)
+            plt.axhline(y=0,c=colorblind2,lw=3)
             plt.xlabel(xlabels[i])
         plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.png')
@@ -1048,63 +1055,93 @@ class calibsfr():
             plt.legend(loc='upper left',fontsize=10)
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-comparison.png')
-    def fit_sfr(self):
-
+    def fit_sfr(self,norder=1,snr_cut=5):
+        
         # logSFR22_KE
         # logSFR_NUV_KE
         # logSFR_NUVIR_KE
         xcols = ['logSFR22_KE','logSFR_NUV_KE','logSFR_NUVIR_KE']
-        xlabels = ['logSFR22_KE','logSFR_NUV_KE','logSFR_NUVIR_KE']        
-        ylabels = ['logSFR GSWLC']
+        xlabels = ['$log_{10}(SFR_{22})$','$log_{10}(SFR_{NUV})$','$log_{10}(SFR_{NUVIR})$']        
+        ylabels = ['$log_{10}(SFR) \ GSWLC$']
         # GSWLC value is logSFR
         y = self.cat['logSFR']
-        flag = (self.cat['logSFR'] > -99) & (self.cat['w4_mag'] > 0)& (self.cat['SERSIC_ABSMAG'][:,1] < 0)
+        flag = (self.cat['logSFR'] > -99) & (self.cat['w4_mag'] > 0)& (self.cat['SERSIC_ABSMAG'][:,1] < 0) & (self.cat['gswFlag'] == 1)
+
+        # sn cut on w4
         plt.figure(figsize=(12,7))
         plt.subplots_adjust(wspace=.45,bottom=.2)
         xmin=-2.5
         xmax=2.5
+        hexbinmax = 30
+
         for i in range(len(xcols)):
             x = self.cat[xcols[i]]
             #func = fitZPoffset
-            func = fitline
+            if norder == 0:
+                print('fitting offset only')
+                func = fitZPoffset
+                p0 = np.array([2])                
+            elif norder == 1:
+                func = fitline
+                p0 = np.array([2,2])
+            else:
+                func = fitparab
+                p0 = np.array([2,2,2])
             plt.subplot(2,3,i+1)
             #plt.scatter(x[flag],self.cat[ycols[i]][flag],label=ycols[i],s=5)
-            plt.hexbin(x[flag],y[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,xmin,xmax),gridsize=75)
+            plt.hexbin(x[flag],y[flag],cmap='gray_r',vmin=0,vmax=hexbinmax,extent=(xmin,xmax,xmin,xmax),gridsize=75)
 
 
 
             xl = np.linspace(-2,2,100)
-            plt.plot(xl,xl,'k-',lw=2,label='1:1')
+            plt.plot(xl,xl,'k-',lw=3,label='1:1',color=colorblind2)
             #plt.plot(xl,xl+.3,'k:',lw=1,label='1:1+.3')
             #plt.plot(xl,xl-.3,'k--',lw=1,label='1:1-.3')
-
+            minfit  = -2
+            maxfit = 2
             if i == 0:
-                minfit = -1
-                maxfit = 0.5
+                minfit = minfit
+                maxfit = maxfit
+                flag = flag & (np.abs(self.cat['w4_nanomaggies']*np.sqrt(self.cat['w4_nanomaggies_ivar'])) > snr_cut)
             elif i == 1:
-                minfit = -1.5
-                maxfit = 0.2
+                minfit = minfit
+                maxfit = maxfit
+                flag = flag & (np.abs(self.cat['SERSIC_ABSMAG'][:,1]*np.sqrt(self.cat['SERSIC_AMIVAR'][:,1])) > snr_cut) 
             elif i == 2:
-                minfit = -1
-                maxfit = 1.5
+                minfit = minfit
+                maxfit = maxfit
+                flag = flag & (np.abs(self.cat['w4_nanomaggies']*np.sqrt(self.cat['w4_nanomaggies_ivar'])) > snr_cut) & \
+                    (np.abs(self.cat['SERSIC_ABSMAG'][:,1]*np.sqrt(self.cat['SERSIC_AMIVAR'][:,1])) > snr_cut) 
             flag2 = flag & (x > minfit) & (x < maxfit) & (y > minfit) & (y < maxfit)
-            popt,pcov = curve_fit(func,x[flag2],y[flag2])
+
+
+
+
+            popt,pcov = curve_fit(func,x[flag2],y[flag2],p0=p0)#,method='dogbox')
             #s = 'fit: a=1,b=%.2f'%tuple(popt)
-            s = 'a=%.2f,b=%.2f'%tuple(popt)            
-            plt.plot(xl,func(xl,*popt),'r-',label=s)
+            
+            if len(popt) == 1:
+                s = 'a=%.2f'%tuple(popt)
+            elif len(popt) == 2:
+                s = 'a=%.2f,b=%.2f'%tuple(popt)
+            elif len(popt) == 3:
+                s = 'a=%.2f,b=%.2f,c=%.2f'%tuple(popt)
+            else:
+                s = 'oops'
+            plt.plot(xl,func(xl,*popt),'r-',label=s,color=colorblind1,lw=3)
             #c = np.polyfit(x[flag],self.cat[ycols[i]][flag],1)            
             #plt.plot(xl,np.polyval(c,xl),'r-',label='ZP offset')
             #s = '{:.2f},{:.2f}'.format(c[0],c[1])
             #plt.text(2,-2,s,horizontalalignment='right')
             plt.axis([-2.5,2.5,-2.5,2.5])
-            plt.legend(loc='upper left',fontsize=10)
-            
+            plt.legend(loc='lower right',fontsize=10)
+            plt.ylabel(ylabels[0])
             plt.subplot(2,3,i+1+3)
             residual = y - func(x,*popt)
-            plt.ylabel(ylabels[0]+' - fit')
-            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=50,extent=(xmin,xmax,-2,2),gridsize=75)
+            plt.ylabel('residuals')
+            plt.hexbin(x[flag],residual[flag],cmap='gray_r',vmin=0,vmax=hexbinmax,extent=(xmin,xmax,-2,2),gridsize=75)
             plt.text(-2,-2,'$\sigma = {:.2f}$'.format(np.std(residual[flag2])))
-            plt.axhline(y=0,c='k',lw=2)
+            plt.axhline(y=0,c=colorblind2,lw=3)
             plt.xlabel(xlabels[i])
             
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.pdf')

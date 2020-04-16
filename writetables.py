@@ -25,7 +25,24 @@ class latextable():
         ### TABLE 1
         ###################################        
         # expABr
-        self.expAB_r_err = 0.1*np.ones(len(self.tab))
+        self.expAB_r_err = self.tab['expABErr_r']
+        # set any error that is less than 0.01 to 0.01
+
+        ###################################
+        ### SET MIN ERROR TO 0.01
+        ###################################        
+        
+        flag = self.expAB_r_err < 0.01
+        self.expAB_r_err[flag] = 0.01*np.ones(sum(flag))
+        # repeat for model mag
+        self.tab['cModelMagErr_i'][self.tab['cModelMagErr_i'] < 0.01] = 0.01*np.ones(sum(self.tab['cModelMagErr_i'] < 0.01))
+        self.tab['cModelMagErr_g'][self.tab['cModelMagErr_g'] < 0.01] = 0.01*np.ones(sum(self.tab['cModelMagErr_g'] < 0.01))
+        # and error in NSA ABS MAG
+        minerr = 0.01
+        minivar = 1./minerr**2
+        self.tab2['SERSIC_AMIVAR'][:,1][self.tab2['SERSIC_AMIVAR'][:,1] == 0] = minivar*np.ones(sum(self.tab2['SERSIC_AMIVAR'][:,1] == 0))
+
+        
         # need to update the error for this
         self.mw_ext_i_err = 0.2*self.tab['extinction_i']
         self.mw_ext_g_err = 0.2*self.tab['extinction_g']
@@ -90,31 +107,38 @@ class latextable():
         sigsq_nuv = A_nuv**2*1./self.tab2['SERSIC_AMIVAR'][:,1]
         sigsq_w4 = A_w4**2*self.tab['w4_mag_err']**2
         self.logSFR_NUVIR_KE_err = np.sqrt(sigsq_d + (1./A/2.5)**2*(sigsq_nuv + sigsq_w4))
-
+        self.sigsq_nuv = sigsq_nuv
+        self.A_w4 = A_w4
+        self.A_nuv = A_nuv
     def clean_sfrs(self):
         '''
         remove bogus values from SFR estimates
         need to make a flag
         '''
-        self.sfr22flag = self.tab['w4_mag'] > 0
-        self.sfr22 = np.zeros(len(self.tab),'f')
-        self.sfr22_err = np.zeros(len(self.tab),'f')                
+        self.sfr22flag = (self.tab['w4_mag'] > 0) & (~np.isnan(self.tab['w4_mag']))
+        self.sfr22 = -99*np.ones(len(self.tab),'f')
+        self.sfr22_err = -99*np.ones(len(self.tab),'f')                
         self.sfr22[self.sfr22flag] = self.tab['logSFR22_KE'][self.sfr22flag]
         self.sfr22_err[self.sfr22flag] = self.logSFR22_KE_err[self.sfr22flag]
 
         self.sfrnuvflag = self.tab2['SERSIC_ABSMAG'][:,1] < 0.
-        self.sfrnuv = np.zeros(len(self.tab),'f')
-        self.sfrnuv_err = np.zeros(len(self.tab),'f')                
+        self.sfrnuv = -99*np.ones(len(self.tab),'f')
+        self.sfrnuv_err = -99*np.ones(len(self.tab),'f')                
 
         self.sfrnuv[self.sfrnuvflag] = self.tab2['logSFR_NUV_KE'][self.sfrnuvflag]
         self.sfrnuv_err[self.sfrnuvflag] = self.logSFR_NUV_KE_err[self.sfrnuvflag]
 
-        self.sfrnuvir = np.zeros(len(self.tab),'f')
-        self.sfrnuvir_err = np.zeros(len(self.tab),'f')                
-
-        self.sfrnuvir[self.sfrnuvflag] = self.tab2['logSFR_NUVIR_KE'][self.sfrnuvflag]
-        self.sfrnuvir_err[self.sfrnuvflag] = self.logSFR_NUVIR_KE_err[self.sfrnuvflag]
-
+        self.sfrnuvir = -99*np.ones(len(self.tab),'f')
+        self.sfrnuvir_err = -99*np.ones(len(self.tab),'f')                
+        flag = self.sfrnuvflag & self.sfr22flag
+        
+        self.sfrnuvir[flag] = self.tab2['logSFR_NUVIR_KE'][flag]
+        self.sfrnuvir_err[flag] = self.logSFR_NUVIR_KE_err[flag]
+        inf_flag = np.isinf(self.sfrnuvir_err)
+        print('galaxies with UV+IR sfr err = inf')
+        printindices = np.arange(len(inf_flag))[inf_flag]
+        for i in printindices:
+            print('{0:02d} {1:.2f} {2:.2f} {3:.2f} {4:.2f} {5:.2f} {6:.2f} {7:.2f} {8:.2e} {9:.2e} {10:.2e}'.format(i,self.sfr22[i],self.sfr22_err[i],self.sfrnuv[i],self.sfrnuv_err[i],self.sfrnuvir[i],self.sfrnuvir_err[i],self.tab2['SERSIC_ABSMAG'][:,1][i],1./np.sqrt(self.tab2['SERSIC_AMIVAR'][:,1][i]),self.A_w4[i],self.A_nuv[i]))
 
     def print_table1(self):
         outfile = open(latextablepath+'table1.tex','w')
@@ -123,7 +147,7 @@ class latextable():
         outfile.write('\\scriptsize\n')
         outfile.write('\\setlength\\tabcolsep{3.0pt} \n')
         outfile.write('\\tablenum{1} \n')
-        outfile.write('\\caption{Basic Optical Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\label{tab:catalog}} \n')
+        outfile.write('\\caption{Basic Optical Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\label{tab:catalog1}} \n')
         outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline \n')
         outfile.write('\\toprule \n')
@@ -161,7 +185,7 @@ class latextable():
         outfile.write('%\\footnotesize \n')
         outfile.write('\\setlength\\tabcolsep{1.0pt} \n')
         outfile.write('\\tablenum{2}\n')
-        outfile.write('\\caption{Derived Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\\label{tab:catalog}}\n')
+        outfile.write('\\caption{Derived Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\\label{tab:catalog2}}\n')
         outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline\n')
         outfile.write('\\toprule\n')
