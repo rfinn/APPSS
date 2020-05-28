@@ -187,5 +187,6 @@ for i in myorder:
     plt.ylabel('$DEC \ (deg)$',fontsize=20)
     nsubplot += 1
 plt.savefig(plotdir+'surveys-skyplot.pdf')
+plt.savefig(plotdir+'surveys-skyplot.png')
 
         

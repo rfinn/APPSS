@@ -21,6 +21,7 @@ from astropy.table import Table, join
 from astropy.coordinates import SkyCoord, Angle
 from scipy.stats import ks_2samp
 from scipy.optimize import curve_fit, least_squares
+from scipy.stats import binned_statistic
 plt.rcParams.update({'font.size': 14})
 
 import sys
@@ -31,6 +32,16 @@ import sys
 colorblind1='#F5793A' # orange
 colorblind2 = '#85C0F9' # light blue
 colorblind3='#0F2080' # dark blue
+
+# using colors from matplotlib default color cycle
+mycolors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+#colorblind1=mycolors[1] # orange
+#colorblind2 = mycolors[9]# light blue
+#colorblind3=mycolors[0] # dark blue
+#colorblind2='#ababab' # grey
+# from matplotlib
+# dk blue, orange, grey, dark grey, light blue, rust, 
+newcolors = ['#006BA4','#FF800E', '#ABABAB', '#595959', '#5F9ED1', '#C85200', '#898989', '#A2C8EC', '#FFBC79', '#CFCFCF']
 
 
 ## some plot parameters
@@ -45,6 +56,21 @@ if homedir.find('Users') > -1:
     tabledir = homedir+'/github/APPSS/tables/'
 else:
     tabledir = homedir+'/research/APPSS/tables/'
+
+### GET SALIM MAIN SEQUENCE FITS, SALIM+2018 ###
+# all SF galaxies according to BPT
+t = np.loadtxt(homedir+'/research/GSWLC/salim2018_ms_v1.dat')
+log_mstar1 = t[:,0]
+log_ssfr1 = t[:,1]
+# everything with sSFR > -11
+t = np.loadtxt(homedir+'/research/GSWLC/salim2018_ms_v2.dat')
+log_mstar2 = t[:,0]
+log_ssfr2 = t[:,1]
+
+# my version, binned median for GSWLC galaxies with vr < 15,0000 
+t = Table.read(homedir+'/research/APPSS/GSWLC2-median-ssfr-mstar-vr15k.dat',format='ipac')
+log_mstar2 = t['med_logMstar']
+log_ssfr2 = t['med_logsSFR']
 
 
 def ks(x,y,run_anderson=True):
@@ -75,7 +101,91 @@ def fitline_error(x,m,b,y):
 def fitparab(x,a,b,c):
     return a*x**2+b*x+c
 
-def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False, \
+    
+
+    
+def plotelbaz():
+    xe=np.arange(8.5,11.5,.1)
+    xe=10.**xe
+    ye=(.08e-9)*xe
+    plt.plot(np.log10(xe),np.log10(ye),'k-',lw=1,label='$Elbaz+2011$')
+    plt.plot(np.log10(xe),np.log10(2*ye),'k:',lw=1,label='$2 \ SFR_{MS}$')
+    # using our own MS fit for field galaxies
+    # use stellar mass between 9.5 and 10.5
+def plotsalim07(useOne=False):
+    #plot the main sequence from Salim+07 for a Chabrier IMF
+    lmstar=np.arange(8.5,11.5,0.1)
+    #use their equation 11 for pure SF galaxies
+    lssfr = -0.35*(lmstar - 10) - 9.83
+    #use their equation 12 for color-selected galaxies including
+    #AGN/SF composites.  This is for log(Mstar)>9.4
+    #lssfr = -0.53*(lmstar - 10) - 9.87
+
+    lsfr = lmstar + lssfr -.3
+    sfr = 10.**lsfr
+
+    ## USE SALIM+2018 FIT
+    if useOne:
+        lmstar = log_mstar1
+        lssfr = log_ssfr1
+    else:
+        lmstar = log_mstar2
+        lssfr = log_ssfr2
+
+    lsfr = lmstar+lssfr
+    plt.plot(lmstar, lsfr, 'w-', lw=4)
+    plt.plot(lmstar, lsfr, c=colorblind1,ls='-', lw=2, label='GSWLC2 med')
+    #plt.plot(lmstar, lsfr-np.log10(5.), 'w--', lw=4)
+    #plt.plot(lmstar, lsfr-np.log10(5.), c=colorblind1,ls='--', lw=2)
+
+def plotsalimssfr(useOne=False,yoffset=None):
+    #plot the main sequence from Salim+07 for a Chabrier IMF
+
+    lmstar=np.arange(8.5,11.5,0.1)
+
+    #use their equation 11 for pure SF galaxies
+    lssfr = -0.35*(lmstar - 10) - 9.83
+    # shift SFR down by 0.3 dex
+    lssfr = lssfr - 0.3
+    
+    ## USE SALIM+2018 FIT
+    if useOne:
+        lmstar = log_mstar1
+        lssfr = log_ssfr1
+    else:
+        lmstar = log_mstar2
+        lssfr = log_ssfr2
+
+    #use their equation 12 for color-selected galaxies including
+    #AGN/SF composites.  This is for log(Mstar)>9.4
+    #lssfr = -0.53*(lmstar - 10) - 9.87
+
+    #lsfr = lmstar + lssfr -.3
+    #sfr = 10.**lsfr
+    if yoffset is not None:
+        lssfr = lssfr + yoffset
+    plt.plot(lmstar, lssfr, 'w-', lw=4)
+    plt.plot(lmstar, lssfr, c=colorblind1,ls='-', lw=2, label='GSWLC2 med')
+    #plt.plot(lmstar, lssfr-np.log10(5.), 'w--', lw=4)
+    #plt.plot(lmstar, lssfr-np.log10(5.), c=colorblind1,ls='--', lw=2)
+def plothuangssfr(useOne=False):
+    #plot the main sequence from Salim+07 for a Chabrier IMF
+    yoffset=-.4
+    lmstar=np.linspace(8.5,9.5,100)
+    lssfr = -0.149*lmstar - 8.207+yoffset
+    plt.plot(lmstar, lssfr, 'w-', lw=4)
+    plt.plot(lmstar, lssfr, c='r',ls='--', lw=2, label='_nolegend_')
+    
+
+    lmstar=np.linspace(9.5,11.5,100)
+    lssfr = -0.759*lmstar - 2.402+yoffset
+    plt.plot(lmstar, lssfr, 'w-', lw=4)
+    plt.plot(lmstar, lssfr, c='r',ls='--', lw=2, label='Huang+2012')
+    #plt.plot(lmstar, lssfr-np.log10(5.), 'w--', lw=4)
+    #plt.plot(lmstar, lssfr-np.log10(5.), c=colorblind1,ls='--', lw=2)
+
+
+def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag1=False,contourflag=False, \
              xmin=7.9, xmax=11.6, ymin=-1.2, ymax=1.2, contour_bins = 40, ncontour_levels=5,\
               xlabel='$\log_{10}(M_\star/M_\odot) $', ylabel='$(g-i)_{corrected} $', color1=colorblind3, color2=colorblind1,\
              nhistbin=50, alphagray=.1):
@@ -96,20 +206,29 @@ def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=Fal
     y2 = y2[keepflag2]
     
     ax1 = plt.subplot2grid((nrow,ncol),(1,0),rowspan=nrow-1,colspan=ncol-1, fig=fig)
-    if hexbinflag:
+    if contourflag1:
+        H, xbins,ybins = np.histogram2d(x1,y1,bins=contour_bins)
+        extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=10,colors=color1, label='__nolegend__')
+        # trying to get name of contour into the legend
+        CS.collections[0].set_label(name1)
+        #plt.legend()
+    elif hexbinflag:
         #t1 = plt.hist2d(x1,y1,bins=100,cmap='gray_r')
         #H, xbins,ybins = np.histogram2d(x1,y1,bins=20)
         #extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
         #plt.contour(np.log10(H.T+1),  10, extent = extent, zorder=1,colors='k')
         #plt.hexbin(xvar2,yvar2,bins='log',cmap='Blues', gridsize=100)
 
-        plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
+        #plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
+        plt.hexbin(x1,y1,bins='log',cmap='Purples', gridsize=75,label=name1)
     else:
-        plt.plot(x1,y1,'k.',alpha=alphagray,label=name1, zorder=2)
+        plt.plot(x1,y1,'k.',color=color1,alpha=alphagray,label=name1, zorder=1)
     if contourflag:
         H, xbins,ybins = np.histogram2d(x2,y2,bins=contour_bins)
         extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
-        plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=1,colors=color2, label='__nolegend__')
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=1,colors=color2, label='__nolegend__')
+        CS.collections[0].set_label(name2)
         #plt.legend()
     else:
         plt.plot(x2,y2,'c.',color=color2,alpha=.3, label=name2)
@@ -126,13 +245,13 @@ def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=Fal
     plt.ylabel(ylabel,fontsize=22)
     #plt.axis([7.9,11.6,-.05,2])
     ax2 = plt.subplot2grid((nrow,ncol),(0,0),rowspan=1,colspan=ncol-1, fig=fig, sharex = ax1, yticks=[])
-    t = plt.hist(x1, normed=True, bins=nhistbin,color='k',histtype='step',lw=1.5, label=name1)
+    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
     t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
     #plt.legend()
     ax2.legend(fontsize=10,loc='upper left')
     ax2.xaxis.tick_top()
     ax3 = plt.subplot2grid((nrow,ncol),(1,ncol-1),rowspan=nrow-1,colspan=1, fig=fig, sharey = ax1, xticks=[])
-    t=plt.hist(y1, normed=True, orientation='horizontal',bins=nhistbin,color='k',histtype='step',lw=1.5, label=name1)
+    t=plt.hist(y1, normed=True, orientation='horizontal',bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
     t=plt.hist(y2, normed=True, orientation='horizontal',bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
     
     plt.yticks(rotation='horizontal')
@@ -149,10 +268,10 @@ def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=Fal
     t = ks(y1,y2,run_anderson=False)
 
 
-def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False, \
+def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag1=False,contourflag=False, \
              xmin=7.9, xmax=11.6, ymin=-1.2, ymax=1.2, contour_bins = 40, ncontour_levels=5,\
              xlabel='$\log_{10}(M_\star/M_\odot) $', ylabel='$\log_{10}(M_\odot/yr)$', color2='c',\
-             nhistbin=50, alphagray=.1,plotline=True):
+             color1='k',nhistbin=50, alphagray=.1,plotmsline=True,plotssfrline=False):
     fig = plt.figure(figsize=(8,8))
     nrow = 4
     ncol = 4
@@ -170,33 +289,55 @@ def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False
     y2 = y2[keepflag2]
     
     ax1 = plt.subplot2grid((nrow,ncol),(1,0),rowspan=nrow-1,colspan=ncol-1, fig=fig)
-    if hexbinflag:
+    if contourflag1:
+        H, xbins,ybins = np.histogram2d(x1,y1,bins=contour_bins)
+        extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=10,colors=color1, label='__nolegend__')
+        CS.collections[0].set_label(name1)
+        #plt.legend()
+    elif hexbinflag:
         #t1 = plt.hist2d(x1,y1,bins=100,cmap='gray_r')
         #H, xbins,ybins = np.histogram2d(x1,y1,bins=20)
         #extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
         #plt.contour(np.log10(H.T+1),  10, extent = extent, zorder=1,colors='k')
         #plt.hexbin(xvar2,yvar2,bins='log',cmap='Blues', gridsize=100)
 
+        #plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
         plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
     else:
-        plt.plot(x1,y1,'k.',alpha=alphagray,label=name1, zorder=2)
+        plt.plot(x1,y1,'k.',color=color1,alpha=alphagray,label=name1, zorder=1)
     if contourflag:
         H, xbins,ybins = np.histogram2d(x2,y2,bins=contour_bins)
         extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
-        plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=1,colors=color2, label='__nolegend__')
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=10,colors=color2, label=name2)
+        CS.collections[0].set_label(name2)
         #plt.legend()
     else:
         plt.plot(x2,y2,'c.',color=color2,alpha=.3, label=name2)
-    if plotline:
+    if plotmsline:
         xl = np.linspace(xmin,xmax,100)
         slope=.75
         xref, yref = 9.45,-.44
         yl = yref + slope*(xl - xref)
-        plt.plot(xl,yl,'k--')
-
-        #plt.legend()
+        #plt.plot(xl,yl,'k--')
+        plotsalim07()
+        #plotsalim07(useOne=True)
+        plt.legend()
+    if plotssfrline:
+        '''
+        xl = np.linspace(xmin,xmax,100)
+        slope=-.5
+        xref, yref = 9.,-9.7
+        yl = yref + slope*(xl - xref)
+        plt.plot(xl,yl,'k-',lw=2,label='GSWLC ref')
+        '''
+        plotsalimssfr()
+        plothuangssfr()        
+        plt.legend()
     #sns.kdeplot(agc['LogMstarTaylor'][keepagc],agc['gmi_corrected'][keepagc])#,bins='log',gridsize=200,cmap='blue_r')
     #plt.colorbar()
+
+
     
     plt.axis([xmin,xmax,ymin,ymax])
     plt.xticks(fontsize=12)
@@ -205,13 +346,13 @@ def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False
     plt.ylabel(ylabel,fontsize=22)
     #plt.axis([7.9,11.6,-.05,2])
     ax2 = plt.subplot2grid((nrow,ncol),(0,0),rowspan=1,colspan=ncol-1, fig=fig, sharex = ax1, yticks=[])
-    t = plt.hist(x1, normed=True, bins=nhistbin,color='k',histtype='step',lw=1.5, label=name1)
+    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
     t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
     #plt.legend()
     ax2.legend(fontsize=10, loc='upper left')
     ax2.xaxis.tick_top()
     ax3 = plt.subplot2grid((nrow,ncol),(1,ncol-1),rowspan=nrow-1,colspan=1, fig=fig, sharey = ax1, xticks=[])
-    t=plt.hist(y1, normed=True, orientation='horizontal',bins=nhistbin,color='k',histtype='step',lw=1.5, label=name1)
+    t=plt.hist(y1, normed=True, orientation='horizontal',bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
     t=plt.hist(y2, normed=True, orientation='horizontal',bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
     
     plt.yticks(rotation='horizontal')
@@ -226,6 +367,85 @@ def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag=False
     print('')
     print('COLOR')
     t = ks(y1,y2,run_anderson=False)
+    return ax1,ax2,ax3
+def sfrmass_simple(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag1=False,contourflag=False, \
+             xmin=7.9, xmax=11.6, ymin=-1.2, ymax=1.2, contour_bins = 40, ncontour_levels=5,\
+             xlabel='$\log_{10}(M_\star/M_\odot) $', ylabel='$\log_{10}(M_\odot/yr)$', color2='c',\
+             color1='k',nhistbin=50, alphagray=.1,plotmsline=True,plotssfrline=False):
+    ## JUST PLOTS THE CENTRAL PANEL
+    fig = plt.figure(figsize=(8,8))
+    
+    # for purposes of this plot, only keep data within the 
+    # window specified by [xmin:xmax, ymin:ymax]
+    
+    keepflag1 = (x1 >= xmin) & (x1 <= xmax) & (y1 >= ymin) & (y1 <= ymax)
+    keepflag2 = (x2 >= xmin) & (x2 <= xmax) & (y2 >= ymin) & (y2 <= ymax)
+    
+    x1 = x1[keepflag1]
+    y1 = y1[keepflag1]
+    
+    x2 = x2[keepflag2]
+    y2 = y2[keepflag2]
+    
+
+    if contourflag1:
+        H, xbins,ybins = np.histogram2d(x1,y1,bins=contour_bins)
+        extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=10,colors=color1, label='__nolegend__')
+        #plt.legend()
+        CS.collections[0].set_label(name1)
+    elif hexbinflag:
+        #t1 = plt.hist2d(x1,y1,bins=100,cmap='gray_r')
+        #H, xbins,ybins = np.histogram2d(x1,y1,bins=20)
+        #extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
+        #plt.contour(np.log10(H.T+1),  10, extent = extent, zorder=1,colors='k')
+        #plt.hexbin(xvar2,yvar2,bins='log',cmap='Blues', gridsize=100)
+
+        #plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
+        plt.hexbin(x1,y1,bins='log',cmap='gray_r', gridsize=75,label=name1)
+    else:
+        plt.plot(x1,y1,'k.',color=color1,alpha=alphagray,label=name1, zorder=1)
+    if contourflag:
+        H, xbins,ybins = np.histogram2d(x2,y2,bins=contour_bins)
+        extent = [xbins[0], xbins[-1], ybins[0], ybins[-1]]
+        CS = plt.contour((H.T), levels=ncontour_levels, extent = extent, zorder=10,colors=color2, label=name2)
+        CS.collections[0].set_label(name2)
+        #plt.legend()
+    else:
+        plt.plot(x2,y2,'c.',color=color2,alpha=.3, label=name2)
+    if plotmsline:
+        xl = np.linspace(xmin,xmax,100)
+        slope=.75
+        xref, yref = 9.45,-.44
+        yl = yref + slope*(xl - xref)
+        #plt.plot(xl,yl,'k--')
+        plotsalim07()
+        plotsalim07(useOne=True)        
+        plt.legend()
+    if plotssfrline:
+        '''
+        xl = np.linspace(xmin,xmax,100)
+        slope=-.5
+        xref, yref = 9.,-9.7
+        yl = yref + slope*(xl - xref)
+        plt.plot(xl,yl,'k-',lw=2,label='GSWLC ref')
+        '''
+        plotsalimssfr()
+        plothuangssfr()        
+        plt.legend()
+    #sns.kdeplot(agc['LogMstarTaylor'][keepagc],agc['gmi_corrected'][keepagc])#,bins='log',gridsize=200,cmap='blue_r')
+    #plt.colorbar()
+
+
+    
+    plt.axis([xmin,xmax,ymin,ymax])
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.xlabel(xlabel,fontsize=22)
+    plt.ylabel(ylabel,fontsize=22)
+    #plt.axis([7.9,11.6,-.05,2])
+    plt.savefig(figname)
+
 
 
     
@@ -234,10 +454,10 @@ def colormag(mag, color, ab, ylabel):
     limits = [-23.9, -14.1, -.5, 1.9]
     flag = ab > 0.8
     #plt.hexbin(mag[flag],color[flag], extent=limits, cmap='gray_r', vmin=0,vmax=45)
-    plt.plot(mag[flag],color[flag],'k.',alpha=.2, markersize=3, label='$B/A > 0.8$',color=colorblind3)
+    plt.plot(mag[flag],color[flag],'k.',alpha=.2, markersize=3, label='$B/A > 0.8$',color=colorblind2)
     flag = ab < 0.3
     #plt.hexbin(mag[flag],color[flag], extent=limits, cmap='Purples_r', vmin=0,vmax=45)
-    plt.plot(mag[flag],color[flag],'c.',color=colorblind2, alpha=.2,markersize=3,label='$B/A < 0.3$')
+    plt.plot(mag[flag],color[flag],'c.',color=colorblind1, alpha=.2,markersize=3,label='$B/A < 0.3$')
     plt.axis(limits)
     plt.xticks(np.arange(-23,-14,2))
     plt.gca().invert_xaxis()
@@ -249,12 +469,13 @@ class matchedcats():
     a100 - NSA
     a100 - S4G
     '''
-    def __init__(self,a100sdss=None, a100nsa=None,a100gsw=None,a100s4g=None):
+    def __init__(self,a100sdss=None, a100nsa=None,a100gsw=None,a100s4g=None,allcats=None):
         self.a100sdss = fits.getdata(a100sdss)
 
         self.a100nsa = fits.getdata(a100nsa)
         self.a100gsw = fits.getdata(a100gsw)
         self.a100s4g = fits.getdata(a100s4g)
+        self.allcats = fits.getdata(allcats)
     def figure1(self):
         plt.figure(figsize=(10,4))
         plt.subplots_adjust(wspace=.0,bottom=.2)
@@ -263,7 +484,11 @@ class matchedcats():
         photflag = self.a100sdss['photFlag_gi'] == 1
         colormag(self.a100sdss['absMag_i'][photflag], self.a100sdss['gmi_no_int'][photflag], self.a100sdss['expAB_g'][photflag],'${uncorrected}$')
         plt.ylabel('$g-i$',fontsize=16)
-        plt.legend(loc='lower left',markerscale=6)
+        leg=plt.legend(loc='lower left',markerscale=6)
+        for lh in leg.legendHandles:
+            print("I'm trying...")
+            lh._legmarker.set_alpha(1)
+            lh.set_alpha(1)
         #plt.gca()
         
         plt.subplot(1,3,2)
@@ -281,6 +506,7 @@ class matchedcats():
         plt.yticks(())
         
         plt.savefig('Figure1.pdf')
+        plt.savefig('Figure1.png')        
         
     def figa_nsa(self):
         # correct to H0=70
@@ -314,8 +540,10 @@ class matchedcats():
         colormass(x1,y1, x2, y2, 'A100+NSA', 'NSA only', 'a100-nsa-color-mass-2.pdf', \
                   hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5., xmax=12, ymin=gimin,ymax=gimax,\
-                  xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2='r')
+                  xlabel='$NSA \ \log_{10}(M_\star/M_\odot)$', ylabel='$ NSA \ (M_g - M_i)$', color2=colorblind1)
+        plt.savefig('a100-nsa-color-mass-2.png')
         return flag1
+
     def figb_nsa(self):
         flag1 = (self.a100nsa.a100Flag == 1) & (self.a100nsa.nsaFlag == 1) & (self.a100nsa.photFlag_gi == 1)
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
@@ -329,8 +557,8 @@ class matchedcats():
         contour_levels = np.linspace(1,100,12)
         colormass(x1,y1, x2, y2, 'A100+NSA', 'A100 only', 'a100-nsa-color-mass-1.pdf', \
                   hexbinflag=True, contourflag=True,contour_bins=30,  ncontour_levels=contour_levels,\
-                  color2='b',xmin=5.,xmax=12, ymin=gimin,ymax=gimax)
-
+                  color2=colorblind2,xmin=5.,xmax=12, ymin=gimin,ymax=gimax)
+        plt.savefig('a100-nsa-color-mass-1.png')
     def figa_gswlc(self):
         # figure a is catalog specific quantities
         
@@ -350,7 +578,8 @@ class matchedcats():
         colormass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'a100-gswlc-color-mass-2.pdf', \
                   hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5.,xmax=12,ymin=gimin,ymax=gimax, \
-                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel='$  \ (M_g - M_i)_{corrected}$', color2='r')
+                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel='$  \ (M_g - M_i)_{corrected}$', color2=colorblind1)
+        plt.savefig('a100-gswlc-color-mass-2.png')
         return flag1
     def figb_gswlc(self):
         # in both
@@ -360,15 +589,15 @@ class matchedcats():
         # x1 = self.a100nsa.LogMstarTaylor_2[flag1]
         x1 = self.a100gsw.logMstarTaylor_1[flag1]
         y1 = self.a100gsw.gmi_corr_1[flag1]
-
         flag2 = (self.a100gsw.a100Flag ==1) & (self.a100gsw.gswFlag == 0) & (self.a100gsw.photFlag_gi_1 == 1) 
         x2 = self.a100gsw.logMstarTaylor_1[flag2]
         y2 = self.a100gsw.gmi_corr_1[flag2]
-        print(len(x2), sum(flag2))
+        #print(len(x2), sum(flag2))
         contour_levels = np.linspace(2,100,12)
         colormass(x1,y1, x2, y2, 'A100+GSWLC', 'A100 only', 'a100-gswlc-color-mass-1.pdf', \
-                  hexbinflag=True, contourflag=True,contour_bins=30, ncontour_levels=contour_levels,\
-                  color2='b',xmin=5.,xmax=12,ymin=gimin,ymax=gimax)
+                  hexbinflag=False, alphagray=.08, contourflag1=True,contourflag=False,contour_bins=30, ncontour_levels=contour_levels,\
+                  color2=colorblind2,xmin=5.,xmax=12,ymin=gimin,ymax=gimax)
+        plt.savefig('a100-gswlc-color-mass-1.png')
     def figa_s4g(self):
         x = self.a100s4g.mstar
         y = self.a100s4g.bvtc
@@ -392,7 +621,8 @@ class matchedcats():
         colormass(x1,y1, x2, y2, 'A100+S4G', 'S4G only', 'a100-s4g-color-mass-1.pdf', \
                   hexbinflag=False,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=5,xmax=13,ymin=gimin, ymax=gimax,nhistbin=15,alphagray=.5,\
-                  xlabel='$S4G \ M_{ABS}$', ylabel='$ Leda \ (B-V)$', color2='r')
+                  xlabel='$S4G \ M_{ABS}$', ylabel='$ Leda \ (B-V)$', color2=colorblind1)
+        plt.savefig('a100-s4g-color-mass-1.png')        
     def figb_s4g(self):
         x = self.a100s4g.logMstarTaylor
         y = self.a100s4g.gmi_corr
@@ -411,8 +641,8 @@ class matchedcats():
         print(contour_levels)
         colormass(x1,y1, x2, y2, 'A100+S4G', 'A100 only', 'a100-s4g-color-mass-2.pdf', \
                   hexbinflag=False,contourflag=True,contour_bins=30, ncontour_levels=contour_levels,\
-                  xmin=5.,xmax=12,ymin=gimin,ymax=gimax,nhistbin=20,alphagray=.5,color2='b')
-
+                  xmin=5.,xmax=12,ymin=gimin,ymax=gimax,nhistbin=20,alphagray=.5,color2=colorblind2)
+        plt.savefig('a100-s4g-color-mass-2.png')        
     def mstar(self):
         # compare different estimates of stellar mass with our estimate from Taylor
 
@@ -495,6 +725,7 @@ class matchedcats():
                 plt.axis([xmin,xmax,ymin,ymax])
 
         plt.savefig('mstar-comparison.pdf')
+        plt.savefig('mstar-comparison.png')        
     def compare_sfrs(self):
         # compare IR vs UV vs IR+UV
         # compare distribution of SFRs
@@ -512,12 +743,14 @@ class matchedcats():
         plt.hist(self.a100nsa.logSFR22_KE[flag],histtype='step',color=colorblind3,bins=mybins,label='IR')
 
         plt.legend(loc='upper left')
-        
-    def sfms(self):
+
+    def sfrmstar_gswlc(self):
         # star-forming main sequence
-        
+
+
         gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
-        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag 
+        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag
+                                                       
         x1 = self.a100gsw.logMstar[flag1]
         y1 = self.a100gsw.logSFR[flag1]
 
@@ -528,35 +761,248 @@ class matchedcats():
         contour_levels = np.logspace(.7,5.5,15)
         contour_levels = np.linspace(2,500,12)
         #print(contour_levels)
-        sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'a100-gswlc-color-mass-2.pdf', \
-                  hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
-                  xmin=7., xmax=12,ymin=-3,ymax=2, \
-                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel='$\log_{10}(SFR (M_\odot/yr))$',  color2='r')
-        # add reference line at log(sSFR) = -10
-        plt.savefig('sfms.pdf')
-        return flag1
-    def ssfrmstar(self):
-        # star-forming main sequence
         
-        gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
-        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag 
-        x1 = self.a100gsw.logMstar[flag1]
-        y1 = self.a100gsw.logSFR[flag1]-x1
+        ax1,ax2,ax3 = sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'sfrmstar-gswlc.pdf', \
+                  hexbinflag=False,contourflag=True,contour_bins=40, \
+                  ncontour_levels=contour_levels,\
+                  xmin=7., xmax=12,ymin=-3,ymax=2, \
+                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', \
+                ylabel='$\log_{10}(SFR (M_\odot/yr))$',  color2=colorblind1, color1=colorblind3)
+        # add reference line at log(sSFR) = -10
+        
+        plt.savefig('sfrmstar-gswlc.pdf')
+        plt.savefig('sfrmstar-gswlc.png')
+        #return flag1
+    def sfrmstar_a100(self,correctMass=False):
+        # star-forming main sequence
+        ### LIMIT TO OVERLAP REGION ###
+        ramin = 140.
+        ramax = 230.
+        decmin = 0.
+        decmax = 35.
+        zmax = 0.05
+        vmax = 15000
 
-        flag2 = (self.a100gsw.a100Flag ==0) & (self.a100gsw.gswFlag == 1) & (self.a100gsw.photFlag_gi_2 == 1) 
-        x2 = self.a100gsw.logMstar[flag2]
-        y2 = self.a100gsw.logSFR[flag2]-x2
+        # keep overlap region
+        keepa100 = (self.allcats.RAdeg_OC > ramin) &\
+          (self.allcats.RAdeg_OC < ramax) &\
+          (self.allcats.DECdeg_OC > decmin) &\
+          (self.allcats.DECdeg_OC < decmax) &\
+          (self.allcats.Vhelio < vmax) 
+        # cull a100
+
+        
+        a100_flag = (self.allcats['w4_mag'] > 0)& (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & (self.allcats.photFlag_gi_2 == 1)
+        # could add flag that keeps SFR22  in SFR22 > 0 (and not require NUV detection for these)
+        
+        flag1 = (self.allcats.a100Flag == 1) & (self.allcats.gswFlag ==1) & a100_flag 
+        x1 = self.allcats['logMstarMcGaugh'][flag1]
+        y1 = self.allcats['logSFR_NUVIR_KE'][flag1]
+
+        # use full a100 catalog for this part
+        a100_flag_allcats = (self.allcats['w4_mag'] > 0) & (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & keepa100
+        print("number of a100 with W4 and NUV detections, in GSWLC overlap = ",sum(a100_flag_allcats))
+        flag2 = (self.allcats.a100Flag ==1) & (self.allcats.gswFlag == 0) & a100_flag_allcats              
+        print("number of those NOT in GSWLC = ",sum(flag2))
+        #a100_flag_allcats
+
+        x2 = self.allcats['logMstarMcGaugh'][flag2]
+        y2 = self.allcats['logSFR_NUVIR_KE'][flag2]
+        print('number in flag2 = ',sum(flag2))
+
+        if correctMass:
+            x1 = self.correctMcGaughMass(x1)
+            x2 = self.correctMcGaughMass(x2)            
+
+        ## CUT BOTH SAMPLES AT sSFR > -11.5
+        
+        #flag1 = (y1-x1) > -11.5
+        #flag2 = (y2-x2) > -11.5
+
+        #x1 = x1[flag1]
+        #y1 = y1[flag1]
+        
+        #x2 = x2[flag2]
+        #y2 = y2[flag2]
         
         contour_levels = np.logspace(.7,5.5,15)
         contour_levels = np.linspace(2,500,12)
         #print(contour_levels)
-        sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'a100-gswlc-color-mass-2.pdf', \
-                  hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
-                  xmin=7., xmax=12,ymin=-13.8,ymax=-8.1, \
-                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2='r',plotline=False)
+
+        if correctMass:
+            xlabel = '$McGaugh_{corrected} \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'sfrmstar-a100-correctedMstar.pdf'            
+        else:
+            xlabel = '$McGaugh \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'sfrmstar-a100.pdf'            
+        ax1,ax2,ax3 = sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'A100 only', outfile1, \
+                hexbinflag=False,alphagray=.05,contourflag1=True,contourflag=False,\
+                contour_bins=40, ncontour_levels=contour_levels,\
+                xmin=7., xmax=12,ymin=-3,ymax=2, \
+                xlabel=xlabel, \
+                ylabel=r'$\rm \log_{10}(SFR \ (M_\odot~yr^{-1})$', \
+                color2=colorblind2,color1=colorblind3,plotmsline=True)
+        # add reference line at log(sSFR) = -10
+
+        # add the median for a100 galaxies with ssfr > -11
+        # for a direct comparison with GSWLC
+        lmstar = self.allcats['logMstarMcGaugh']
+        sfr = self.allcats['logSFR_NUVIR_KE']
+        ssfr = sfr - lmstar
+        newflag =  (self.allcats.a100Flag == 1) & a100_flag_allcats  & (ssfr > -11) & (lmstar > 7.5) & (lmstar < 11)
+        nbins=20
+        ybin,xbin_edges,binnumber = binned_statistic(lmstar[newflag],sfr[newflag],bins=nbins,statistic='mean')
+        ybin_err,xbin_edges,binnumber = binned_statistic(lmstar[newflag],sfr[newflag],bins=nbins,statistic='std')
+        ybin_err = ybin_err/np.sqrt(sum(newflag)/nbins)
+        xbin = 0.5*(xbin_edges[:-1]+xbin_edges[1:])
+        #ax1.plot(xbin,ybin,'w-',lw=4,label='_nolegend_')
+        #ax1.plot(xbin,ybin,'k-',lw=2,label='A100 med')
+        ax1.fill_between(xbin,ybin+ybin_err,ybin-ybin_err,color='.5',label='A100 med',zorder=10)
+        #ax1.errorbar(xbin,ybin,yerr=ybin_err,fmt="none",ec='c',lw=2,label='_nolegend_')        
+        ax1.legend()
+
+        
+        if correctMass:
+            plt.savefig('sfrmstar-a100-correctedMstar.pdf')
+            plt.savefig('sfrmstar-a100-correctedMstar.png')
+        else:
+            plt.savefig('sfrmstar-a100.pdf')
+            plt.savefig('sfrmstar-a100.png')
+            
+        #return flag1
+    def ssfrmstar_gswlc(self,masslimit=0,ssfrlimit=-11.5,plotssfrline=False):
+        # star-forming main sequence
+        
+        gsw_flag = (self.a100gsw.logMstar > masslimit) & (self.a100gsw.photFlag_gi_2 == 1)
+        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag 
+        x1 = self.a100gsw.logMstar[flag1]
+        y1 = self.a100gsw.logSFR[flag1]-x1
+
+        flag2 = (self.a100gsw.a100Flag ==0) & (self.a100gsw.gswFlag == 1) & (self.a100gsw.photFlag_gi_2 == 1) & (self.a100gsw.logMstar > masslimit) 
+        x2 = self.a100gsw.logMstar[flag2]
+        y2 = self.a100gsw.logSFR[flag2]-x2
+
+        ## APPLY SSFR > -11.5 CUT
+        flag1 = y1 > ssfrlimit
+        flag2 = y2 > ssfrlimit
+
+        x1 = x1[flag1]
+        y1 = y1[flag1]
+        
+        x2 = x2[flag2]
+        y2 = y2[flag2]
+
+        #self.ssfrmstar_simple(x1,y1,x2,y2)
+        contour_levels = np.logspace(.7,5.5,15)
+        contour_levels = np.linspace(2,500,12)
+        #print(contour_levels)
+        outfile1 = 'ssfr-mstar-gswlc.pdf'
+        ax1,ax2,ax3 = sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', outfile1, \
+                  hexbinflag=False,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
+                  xmin=7., xmax=12,ymin=-12,ymax=-8.1, alphagray=.08,\
+                  xlabel='$GSWLC \ \log_{10}(M_\star/M_\odot)$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2=colorblind1,color1=colorblind3,plotmsline=False,plotssfrline=plotssfrline)
         # add reference line at log(sSFR) = -10
         plt.savefig('ssfr-mstar-gswlc.pdf')
+        plt.savefig('ssfr-mstar-gswlc.png')        
         return flag1
+    def ssfrmstar_a100(self,ssfrlimit=-11.5,correctMass=False):
+        # star-forming main sequence
+        # use a100 values for SFR and Mstar
+
+        ### LIMIT TO OVERLAP REGION ###
+        ramin = 140.
+        ramax = 230.
+        decmin = 0.
+        decmax = 35.
+        zmax = 0.05
+        vmax = 15000
+
+        # keep overlap region
+        keepa100 = (self.allcats.RAdeg_OC > ramin) &\
+          (self.allcats.RAdeg_OC < ramax) &\
+          (self.allcats.DECdeg_OC > decmin) &\
+          (self.allcats.DECdeg_OC < decmax) &\
+          (self.allcats.Vhelio < vmax) 
+        # cull a100
+
+        
+        #a100_flag = (self.allcats['w4_mag'] > 0)& (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & (self.allcats.photFlag_gi_2 == 1)
+
+        # all must have W4 detection, UV detection, and in overlap region
+        a100_flag_allcats = (self.allcats['logMstarMcGaugh'] > 0) & (self.allcats['logSFR_NUVIR_KE'] > -5) & keepa100  & (self.allcats.photFlag_gi_1 == 1)
+        
+        flag1 = (self.allcats.a100Flag == 1) & (self.allcats.gswFlag ==1) & a100_flag_allcats 
+        print("number of a100 with W4 and NUV detections, in GSWLC overlap = ",sum(a100_flag_allcats))
+        flag2 = (self.allcats.a100Flag ==1) & (self.allcats.gswFlag == 0) & a100_flag_allcats
+        print("number of those NOT in GSWLC = ",sum(flag2))
+
+        x1 = self.allcats['logMstarMcGaugh']
+
+
+        print('number in flag2 = ',sum(flag2))
+        if correctMass:
+            x1 = self.correctMcGaughMass(x1)
+
+            xlabel = '$McGaugh_{corrected} \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'ssfrmstar-a100-correctedMstar.pdf'
+            outfile2 = 'ssfrmstar-a100-correctedMstar.png'                        
+        else:
+            xlabel = '$McGaugh \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'ssfrmstar-a100.pdf'
+            outfile2 = 'ssfrmstar-a100.png'                        
+        y1 = self.allcats['logSFR_NUVIR_KE']-x1
+
+        
+        x2 = x1[flag2]
+        y2 = y1[flag2]        
+        
+        x1 = x1[flag1]
+        y1 = y1[flag1]        
+        ## CUT BOTH SAMPLES AT sSFR > -11.5
+        
+        flag1 = y1 > ssfrlimit
+        flag2 = y2 > ssfrlimit
+
+        x1 = x1[flag1]
+        y1 = y1[flag1]
+        
+        x2 = x2[flag2]
+        y2 = y2[flag2]
+        
+        contour_levels = np.logspace(.7,5.5,15)
+        contour_levels = np.linspace(2,500,12)
+        #print(contour_levels)
+        outfile1 = 'ssfr-mstar-a100.pdf'
+        ax1, ax2, ax3 = sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'A100 only', outfile1, \
+                  hexbinflag=False,alphagray=.05,contourflag1=True,contourflag=False,contour_bins=40, ncontour_levels=contour_levels,\
+                  xmin=7., xmax=12,ymin=-12,ymax=-8.1, \
+                  xlabel=xlabel, ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2=colorblind2,color1=colorblind3,plotmsline=False,plotssfrline=True)
+        # add the median for a100 galaxies with ssfr > -11
+        # for a direct comparison with GSWLC
+        lmstar = self.allcats['logMstarMcGaugh']
+        ssfr = self.allcats['logSFR_NUVIR_KE']-lmstar
+        newflag =  (self.allcats.a100Flag == 1) & a100_flag_allcats  & (ssfr > -11) & (lmstar > 7.5) & (lmstar < 11)
+        nbins=20
+        ybin,xbin_edges,binnumber = binned_statistic(lmstar[newflag],ssfr[newflag],bins=nbins,statistic='mean')
+        ybin_err,xbin_edges,binnumber = binned_statistic(lmstar[newflag],ssfr[newflag],bins=nbins,statistic='std')
+        ybin_err = ybin_err/np.sqrt(sum(newflag)/nbins)
+        xbin = 0.5*(xbin_edges[:-1]+xbin_edges[1:])
+        #ax1.plot(xbin,ybin,'w-',lw=4,label='_nolegend_')
+        #ax1.plot(xbin,ybin,'k-',lw=2,label='A100 med')
+        ax1.fill_between(xbin,ybin+ybin_err,ybin-ybin_err,color='.5',label='A100 med',zorder=10)
+        #ax1.errorbar(xbin,ybin,yerr=ybin_err,fmt="none",ec='c',lw=2,label='_nolegend_')        
+        ax1.legend()
+
+        
+        plt.savefig(outfile1)
+        plt.savefig(outfile2)
+        return flag1
+    def correctMcGaughMass(self,mass):
+        correctFlag = (mass > 7.5) & (mass < 11)
+        mass[correctFlag] = 0.0647*mass[correctFlag]**2-0.195*mass[correctFlag]+5.32
+        return mass
+    
+        
     def ssfrcolor(self):
         # sSFR vs color
 
@@ -575,9 +1021,10 @@ class matchedcats():
         sfrmass(x1,y1, x2, y2, 'A100+GSWLC', 'GSWLC only', 'a100-gswlc-color-mass-2.pdf', \
                   hexbinflag=True,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=-.5, xmax=2,ymin=-13.8,ymax=-8.1, \
-                  xlabel='$(g-i)_{corrected}$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2='r',plotline=False)
+                  xlabel='$(g-i)_{corrected}$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2=colorblind1,plotline=False)
         # add reference line at log(sSFR) = -10
         plt.savefig('ssfr-color-gswlc.pdf')
+        plt.savefig('ssfr-color-gswlc.png')        
         return flag1
     def ssfrHIfrac(self):
         # star-forming main sequence
@@ -599,6 +1046,7 @@ class matchedcats():
         plt.ylabel(r'$\rm \log_{10}(sSFR/yr^{-1})$',fontsize=16)
         plt.xlabel(r'$\rm log_{10}(M_{HI}/M_\star) $',fontsize=16)
         plt.savefig('ssfr-HIfrac.pdf')
+        plt.savefig('ssfr-HIfrac.png')        
         return flag1     
     def ssfr(self):
         gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
@@ -612,7 +1060,7 @@ class matchedcats():
         x2 = self.a100gsw.logMstar[flag2]
         y2 = self.a100gsw.logSFR[flag2]
         ssfr2 = y2-x2
-        color2='r'
+        color2=colorblind1
         name2 = 'GSWLC only'
         
         nhistbin = 50
@@ -626,6 +1074,7 @@ class matchedcats():
         plt.xlim(-14,-7.5)
         plt.legend(loc='upper left')
         plt.savefig('ssfr.pdf')
+        plt.savefig('ssfr.png')        
     def plotelbaz(self):
         xe=np.arange(8.5,11.5,.1)
         xe=10.**xe
@@ -847,6 +1296,7 @@ class matchedcats():
             ra = allcoords[i].ra.radian
             #ax.scatter(
 
+    
 class calibsfr():
     def __init__(self):
         # read in catalog that matches a100+NSA+GSWLC
@@ -938,9 +1388,9 @@ class calibsfr():
             flag2 = flag & (x > 8) & (x < 12) & (y > 8) & (y < 12)
             popt,pcov = curve_fit(func,x[flag2],y[flag2])
             if i == 1:
-                s = 'a=%.2f,b=%.2f,c=%.2f'%tuple(popt)
+                s = 'a=%.2e,b=%.2e,c=%.2e'%tuple(popt)
             else:
-                s = 'a=%.2f,b=%.2f'%tuple(popt)
+                s = 'a=%.2e,b=%.2e'%tuple(popt)
             plt.plot(xl,func(xl,*popt),'r-',label=s,color=colorblind1,lw=3)
             
             plt.axis([xmin,xmax,xmin,xmax])
@@ -1173,6 +1623,7 @@ if __name__ == '__main__':
     a100nsa = table_path+'a100-nsa.fits'
     a100gsw = table_path+'a100-gswlcA2.fits'
     a100s4g = table_path+'a100-s4g.fits'
-    p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g)
+    allcats = table_path+'a100-sdss-wise-nsa-gswlcA2.fits'
+    p = matchedcats(a100sdss=a100, a100nsa=a100nsa,a100gsw=a100gsw,a100s4g=a100s4g,allcats=allcats)
 
     fp = calibsfr()

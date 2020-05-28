@@ -244,7 +244,7 @@ class wise_functions():
 
         
 class a100(phot_functions,wise_functions):
-    def __init__(self, a100_catalog,sdss_catalog):
+    def __init__(self, a100_catalog,sdss_catalog,sdss_catalog2=None):
         '''
         INPUT:
         - a100_catalog = csv version of a100 catalog
@@ -259,6 +259,15 @@ class a100(phot_functions,wise_functions):
         # join cats
         self.a100sdss = join(self.a,self.s,keys='AGC')
         print('number of rows in a100 table AFTER joining HI and SDSS params = ',len(self.a100sdss))
+        
+        # add column ipcode from a100.SDSSparms.191001.csv
+        # other columns that should be included
+        a1002 = ascii.read(sdss_catalog2,format='csv')
+        a1002 = Table([a1002['AGC'],a1002['icode'],a1002['pcode'],a1002['ipcode'],a1002['photoID'],a1002['spectID'],a1002['sdss_z']])
+        # match these columns to the a100sdss table
+        self.a100sdss = join(self.a100sdss,a1002,keys='AGC')
+        print('number of rows in a100 table AFTER adding other sdss cols like ipcode = ',len(self.a100sdss))
+        
         # now calculate quantities that we use in our paper
         self.ref_column = 'ra'
         self.ref_column_objid = 'objID'
@@ -268,6 +277,19 @@ class a100(phot_functions,wise_functions):
         self.define_photflag()
         self.taylor_mstar()
 
+        # create a new column to indicate of galaxy is outside the sdss footprint
+        # photFlag_gi = 0 - no sdss phot
+        #               1 - good sdss phot (errors < 0.05)
+        #               2 - bad sdss phot (one of errors > 0.05)
+        # we are now breaking zero into zero
+        #               0 - outside sdss footprint
+        #               3 - within sdss footprint but no sdss photometry
+        # CHECK THIS WITH MARY!!!
+        photCode = self.a100sdss['photFlag_gi'].copy()
+        flag = ~self.a100sdss['photFlag_gi'] & (self.a100sdss['ipcode'] != 0)
+        photCode[flag] = 3*np.ones(len(self.a100sdss),'i')[flag]
+        c = Column(photCode,name='sdssPhotFlag')
+        self.a100sdss.add_column(c)
         
         # match unWISE photometry to table
         self.get_wise()
@@ -865,9 +887,11 @@ class matchfulla100():
 def make_a100sdss():
     a100_file = tabledir+'/a100.HIparms.191001.csv'
     # read in sdss phot, line-matched catalogs
-    sdss_file = tabledir+'/a100.SDSSparms.191001.csv'
-    sdss_file = tabledir+'/a100.code12.SDSSvalues200406.csv'    
-    a = a100(a100_file,sdss_file)
+    sdss_file2 = tabledir+'/a100.SDSSparms.191001.csv'
+    sdss_file = tabledir+'/a100.code12.SDSSvalues200409.csv'
+    ## UPDATING TO READ IN COLUMN IPCODE FROM SDSSPARMS SO THAT WE CAN
+    ## UPDATE THE SDSS FLAG TO INDICATE GALAXIES THAT ARE NOT IN THE SDSS FOOTPRINT
+    a = a100(a100_file,sdss_file,sdss_catalog2=sdss_file2)
 
 
 if __name__ == '__main__':

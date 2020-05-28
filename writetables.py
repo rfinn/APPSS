@@ -18,6 +18,7 @@ class latextable():
         self.tab2 = fits.getdata(tablepath+'full-a100-sdss-wise-nsa.fits')
 
         self.tab2 = self.tab2[0:len(self.tab)] # trim table to keep only A100 rows
+        print('length of tab2 = ',len(self.tab2),' should be 31502')
         self.agcdict2=dict((a,b) for a,b in zip(self.tab2['AGC'],np.arange(len(self.tab2['AGC']))))
         pass
     def calculate_errors(self):
@@ -158,7 +159,7 @@ class latextable():
         outfile.write('\\hline \n')
         for i in range(25): # print first N lines of data
             # AGC photflag sdss_objid wiseobjid RA DEC vhelio D D_err Ext_g Ext_i expABr err cmodelI err
-            s = '{0:d} & {1:d} & {2:d} & {3:d}& {4:9.6f}&{5:9.5f} & {6:d} & {7:.1f} & {8:.1f} &  {9:.2f} & {10:.2f}& {11:.2f}& {12:.2f}& {13:.2f} &{14:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['photFlag_gi'][i],self.tab['objID_1'][i],self.tab['unwise_objid'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
+            s = '{0:d} & {1:d} & {2:d} & {3:d}& {4:9.6f}&{5:9.5f} & {6:d} & {7:.1f} & {8:.1f} &  {9:.2f} & {10:.2f}& {11:.2f}& {12:.2f}& {13:.2f} &{14:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['unwise_objid'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
             outfile.write(s)
 
         outfile.write('\\bottomrule \n')
