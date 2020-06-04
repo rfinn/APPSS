@@ -286,7 +286,7 @@ class a100(phot_functions,wise_functions):
         #               3 - within sdss footprint but no sdss photometry
         # CHECK THIS WITH MARY!!!
         photCode = self.a100sdss['photFlag_gi'].copy()
-        flag = ~self.a100sdss['photFlag_gi'] & (self.a100sdss['ipcode'] != 0)
+        flag = (self.a100sdss['photFlag_gi']==0) & (self.a100sdss['ipcode'] != 0)
         photCode[flag] = 3*np.ones(len(self.a100sdss),'i')[flag]
         c = Column(photCode,name='sdssPhotFlag')
         self.a100sdss.add_column(c)

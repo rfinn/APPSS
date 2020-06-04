@@ -132,8 +132,8 @@ ax = fig.add_subplot(111)#, projection='lambert')
 
 all_ra = [nsa['RA'],gsw['RA'],a100['RAdeg_Use'],s4g['ra']]
 all_dec = [nsa['DEC'],gsw['DEC'],a100['DECdeg_Use'],s4g['dec']]
-labels = ['NSA','GSWLC','A100','S4G']
-titles = ['(a) NSA','(b) GSWLC','A100','(c) S4G']
+labels = ['NSA','GSWLC2','A100','S4G']
+titles = ['(a) NSA','(b) GSWLC2','A100','(c) S4G']
 myorder = [0,1,3]
 #myorder = [1]
 mycolors = ['k','0.7','b','r']

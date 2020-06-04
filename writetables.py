@@ -2,7 +2,8 @@
 import numpy as np
 import os
 from astropy.io import fits
-
+from astropy.table import Table
+from datetime import datetime
 
 homedir = os.getenv('HOME')
 tablepath = homedir+'/research/APPSS/tables/'
@@ -247,9 +248,36 @@ class latextable():
         outfile.write('\\end{center} \n')
         outfile.write('\\end{sidewaystable*} \n')
         outfile.close()
+    def write_full_tables(self):
+        # table to assist with UAT summer research
+        # will add columns that should be useful for lots of projects
+        #
+        # basically all of table 2:
+        # a100
+        # GSWLC mass, sfr
+        # logMstarTaylor, err
+        # logMstarMcGaugh, err
+        # logSFR22, err
+        # logSFRNUV, err
+        # log SFR_NUVIR, err
+        # logMHI, err
+        # g,i
+        #
+        # plus RA, DEC, vhelio, D(err)
+        dateTimeObj = datetime.now()
+        myDate = dateTimeObj.strftime("%d-%b-%Y")
+        tab1 = Table([self.tab['AGC'],self.tab['sdssPhotFlag'],self.tab['objID_1'],self.tab['unwise_objid'],self.tab['RAdeg_Use'],self.tab['DECdeg_Use'],self.tab['Vhelio'],self.tab['Dist'],self.tab['sigDist'],self.tab['extinction_g'],self.tab['extinction_i'],self.tab['expAB_r'],self.expAB_r_err,self.tab['cModelMag_i'],self.tab['cModelMagErr_i']], \
+                     names=['AGC','sdssPhotFlag','sdss_objid','unwise_objid','RA','DEC','Vhelio','Dist','sigDist','extinction_g','extinction_i','expAB_r','expAB_r_err','cModelMag_i','cModelMagErr_i'])
+        tab1.write(tablepath+'durbala2020-table1.'+myDate+'.fits',format='fits')
+
+        tab2 = Table([self.tab['AGC'],self.tab['gamma_g'],self.tab['gamma_i'],self.tab['absMag_i_corr'],self.absMag_i_corr_err,self.tab['gmi_corr'],self.gmi_corr_err,self.tab['logMstarTaylor'],self.logMstarTaylor_err,self.tab['logMstarMcGaugh'],self.logMstarMcGaugh_err,self.sfr22,self.sfr22_err, self.sfrnuv,self.sfrnuv_err, self.sfrnuvir,self.sfrnuvir_err,self.tab['logMH'],self.tab['siglogMH']],\
+                     names=['AGC','gamma_g','gamma_i','absMag_i_corr','absMag_i_corr_err','gmi_corr','gmi_corr_err','logMstarTaylor','logMstarTaylor_err','logMstarMcGaugh','logMstarMcGaugh_err','logSFR22','logSFR22_err', 'logSFRNUV','logSFRNUV_err', 'logSFRNUVIR','logSFRNUVIR_err','logMH','logMH_err'])
+        tab2.write(tablepath+'durbala2020-table2.'+myDate+'.fits',format='fits')
+        pass
 if __name__ == '__main__':
     t = latextable()
     t.calculate_errors()
     t.clean_sfrs()
     t.print_table1()
     t.print_table2()
+    t.write_full_tables()
