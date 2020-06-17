@@ -754,7 +754,7 @@ class matchedcats():
         print('number to plot = ',sum(flag))
         plt.hist(self.a100nsa.logSFR_NUV_KE[flag],histtype='step',color='b',bins=mybins,label='UV')
         
-        plt.hist(self.a100nsa.logSFR_NUVIR_KE[flag],histtype='step',color=colorblind2,bins=mybins,label='UV+IR')
+        plt.hist(self.a100nsa.logSFR_NUVIR_KE[flag],histtype='step',color=colorblind2,bins=mybins,label='NUVcorr')
         #flag = self.a100nsa.w4_mag > 0
         plt.hist(self.a100nsa.logSFR22_KE[flag],histtype='step',color=colorblind3,bins=mybins,label='IR')
 
