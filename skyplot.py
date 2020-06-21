@@ -174,9 +174,10 @@ for i in myorder:
         plotoverlapNSA()
     elif i == 1:
         plotoverlapNSA()
+        plt.xlabel('$RA \ (deg)$',fontsize=20)        
     elif i == 3:
         plotoverlapS4G()
-        plt.xlabel('$RA \ (deg)$',fontsize=20)
+
     plt.axis([-10,370,-95,95])
     plt.grid(True)
     if i < 3:

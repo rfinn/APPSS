@@ -260,8 +260,8 @@ def colormass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag1=Fa
     plt.ylabel(ylabel,fontsize=22)
     #plt.axis([7.9,11.6,-.05,2])
     ax2 = plt.subplot2grid((nrow,ncol),(0,0),rowspan=1,colspan=ncol-1, fig=fig, sharex = ax1, yticks=[])
-    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
-    t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
+    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1+' ({:d})'.format(sum(keepflag1)))
+    t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2+' ({:d})'.format(sum(keepflag2)))
     #plt.legend()
     ax2.legend(fontsize=10,loc='upper left')
     ax2.xaxis.tick_top()
@@ -362,8 +362,8 @@ def sfrmass(x1,y1,x2,y2,name1,name2, figname, hexbinflag=False,contourflag1=Fals
     plt.ylabel(ylabel,fontsize=22)
     #plt.axis([7.9,11.6,-.05,2])
     ax2 = plt.subplot2grid((nrow,ncol),(0,0),rowspan=1,colspan=ncol-1, fig=fig, sharex = ax1, yticks=[])
-    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1)
-    t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2)
+    t = plt.hist(x1, normed=True, bins=nhistbin,color=color1,histtype='step',lw=1.5, label=name1+' ({:d})'.format(sum(keepflag1)))
+    t = plt.hist(x2, normed=True, bins=nhistbin,color=color2,histtype='step',lw=1.5, label=name2+' ({:d})'.format(sum(keepflag2)))
     #plt.legend()
     ax2.legend(fontsize=10, loc='upper left')
     ax2.xaxis.tick_top()
@@ -762,15 +762,33 @@ class matchedcats():
 
     def sfrmstar_gswlc(self):
         # star-forming main sequence
+        ### LIMIT TO OVERLAP REGION ###
+        ramin = 140.
+        ramax = 230.
+        decmin = 0.
+        decmax = 35.
+        zmax = 0.05
+        vmax = 15000
+
+        # keep overlap region
+        # define flag based on GSWLC RA, DEC and redshift
+        # GSWLC RA = RA_2
+        # GSWLC_DEC = DEC_2
+        # GSWLC redshift = Z
+        overlapFlag = (self.a100gsw['RA_2'] > ramin) &\
+          (self.a100gsw['RA_2']< ramax) &\
+          (self.a100gsw['DEC_2'] > decmin) &\
+          (self.a100gsw['DEC_2'] < decmax) &\
+          (self.a100gsw['Z']*3.e5 < vmax) 
 
 
-        gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
-        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag
+        gsw_flag = (self.a100gsw.logMstar > 0) #& (self.a100gsw.photFlag_gi_2 == 1)
+        flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag & overlapFlag
                                                        
         x1 = self.a100gsw.logMstar[flag1]
         y1 = self.a100gsw.logSFR[flag1]
 
-        flag2 = (self.a100gsw.a100Flag ==0) & (self.a100gsw.gswFlag == 1) & (self.a100gsw.photFlag_gi_2 == 1) 
+        flag2 = (self.a100gsw.a100Flag ==0) & (self.a100gsw.gswFlag == 1)& gsw_flag & overlapFlag# & (self.a100gsw.photFlag_gi_2 == 1) 
         x2 = self.a100gsw.logMstar[flag2]
         y2 = self.a100gsw.logSFR[flag2]
         
@@ -789,7 +807,7 @@ class matchedcats():
         plt.savefig('sfrmstar-gswlc.pdf')
         plt.savefig('sfrmstar-gswlc.png')
         #return flag1
-    def sfrmstar_a100(self,correctMass=False):
+    def sfrmstar_a100(self,correctMass=False,useTaylor=False):
         # star-forming main sequence
         ### LIMIT TO OVERLAP REGION ###
         ramin = 140.
@@ -799,34 +817,39 @@ class matchedcats():
         zmax = 0.05
         vmax = 15000
 
+        cat = self.allcats
+        if useTaylor:
+            mass_key = 'logMstarTaylor_1'
+        else:
+            mass_key = 'logMstarMcGaugh'
         # keep overlap region
-        keepa100 = (self.allcats.RAdeg_OC > ramin) &\
-          (self.allcats.RAdeg_OC < ramax) &\
-          (self.allcats.DECdeg_OC > decmin) &\
-          (self.allcats.DECdeg_OC < decmax) &\
-          (self.allcats.Vhelio < vmax) 
+        keepa100 = (cat['RAdeg_OC'] > ramin) &\
+          (cat['RAdeg_OC'] < ramax) &\
+          (cat['DECdeg_OC'] > decmin) &\
+          (cat['DECdeg_OC'] < decmax) &\
+          (cat['Vhelio'] < vmax) 
         # cull a100
 
-        
-        a100_flag = (self.allcats['w4_mag'] > 0)& (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & (self.allcats.photFlag_gi_2 == 1)
+        if useTaylor:
+            a100_flag = (cat['w4_mag'] > 0)& (cat['SERSIC_ABSMAG'][:,1] < 0)  & keepa100 & (cat['photFlag_gi_1'] == 1)
+        else:
+            a100_flag = (cat['w4_mag'] > 0)& (cat['SERSIC_ABSMAG'][:,1] < 0)  & keepa100 &(cat['w1_mag'] > 0)
         # could add flag that keeps SFR22  in SFR22 > 0 (and not require NUV detection for these)
+        print('number with a100_flag = ',sum(a100_flag))
+        flag1 = (cat['a100Flag'] == 1) & (cat['gswFlag'] ==1) & a100_flag 
+
+        flag2 = (cat['a100Flag'] ==1) & (cat['gswFlag'] == 0) & a100_flag
         
-        flag1 = (self.allcats.a100Flag == 1) & (self.allcats.gswFlag ==1) & a100_flag 
-        x1 = self.allcats['logMstarMcGaugh'][flag1]
-        y1 = self.allcats['logSFR_NUVIR_KE'][flag1]
-
-        # use full a100 catalog for this part
-        a100_flag_allcats = (self.allcats['w4_mag'] > 0) & (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & keepa100
-        print("number of a100 with W4 and NUV detections, in GSWLC overlap = ",sum(a100_flag_allcats))
-        flag2 = (self.allcats.a100Flag ==1) & (self.allcats.gswFlag == 0) & a100_flag_allcats              
         print("number of those NOT in GSWLC = ",sum(flag2))
-        #a100_flag_allcats
 
-        x2 = self.allcats['logMstarMcGaugh'][flag2]
-        y2 = self.allcats['logSFR_NUVIR_KE'][flag2]
+        x1 = cat[mass_key][flag1]
+        y1 = cat['logSFR_NUVIR_KE'][flag1]
+
+        x2 = cat[mass_key][flag2]
+        y2 = cat['logSFR_NUVIR_KE'][flag2]
         print('number in flag2 = ',sum(flag2))
 
-        if correctMass:
+        if correctMass & (not useTaylor):
             x1 = self.correctMcGaughMass(x1)
             x2 = self.correctMcGaughMass(x2)            
 
@@ -845,9 +868,12 @@ class matchedcats():
         contour_levels = np.linspace(2,500,12)
         #print(contour_levels)
 
-        if correctMass:
+        if correctMass and (not useTaylor):
             xlabel = '$McGaugh_{corrected} \ \log_{10}(M_\star/M_\odot)$'
             outfile1 = 'sfrmstar-a100-correctedMstar.pdf'            
+        elif useTaylor:
+            xlabel = '$Taylor \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'sfrmstar-a100-Taylor.pdf'            
         else:
             xlabel = '$McGaugh \ \log_{10}(M_\star/M_\odot)$'
             outfile1 = 'sfrmstar-a100.pdf'            
@@ -862,10 +888,10 @@ class matchedcats():
 
         # add the median for a100 galaxies with ssfr > -11
         # for a direct comparison with GSWLC
-        lmstar = self.allcats['logMstarMcGaugh']
-        sfr = self.allcats['logSFR_NUVIR_KE']
+        lmstar = cat[mass_key]
+        sfr = cat['logSFR_NUVIR_KE']
         ssfr = sfr - lmstar
-        newflag =  (self.allcats.a100Flag == 1) & a100_flag_allcats  & (ssfr > -11) & (lmstar > 7.5) & (lmstar < 11)
+        newflag = (flag1 | flag2)  & (ssfr > -11) & (lmstar > 7.5) & (lmstar < 11)
         nbins=20
         ybin,xbin_edges,binnumber = binned_statistic(lmstar[newflag],sfr[newflag],bins=nbins,statistic='mean')
         ybin_err,xbin_edges,binnumber = binned_statistic(lmstar[newflag],sfr[newflag],bins=nbins,statistic='std')
@@ -917,12 +943,12 @@ class matchedcats():
         ax1,ax2,ax3 = sfrmass(x1,y1, x2, y2, 'A100+GSWLC2', 'GSWLC2 only', outfile1, \
                   hexbinflag=False,contourflag=True,contour_bins=40, ncontour_levels=contour_levels,\
                   xmin=7., xmax=12,ymin=-12,ymax=-8.1, alphagray=.08,\
-                  xlabel='$GSWLC2 \ \log_{10}(M_\star/M_\odot)$', ylabel=r'$\rm \log_{10}(sSFR/yr^{-1})$',  color2=colorblind1,color1=colorblind3,plotmsline=False,plotssfrline=plotssfrline)
+                  xlabel='$GSWLC2 \ \log_{10}(M_\star/M_\odot)$', ylabel=r'$\rm GSWLC2 \ \log_{10}(sSFR/yr^{-1})$',  color2=colorblind1,color1=colorblind3,plotmsline=False,plotssfrline=plotssfrline)
         # add reference line at log(sSFR) = -10
         plt.savefig('ssfr-mstar-gswlc.pdf')
         plt.savefig('ssfr-mstar-gswlc.png')        
         return flag1
-    def ssfrmstar_a100(self,ssfrlimit=-11.5,correctMass=False):
+    def ssfrmstar_a100(self,ssfrlimit=-11.5,correctMass=False,useTaylor=False):
         # star-forming main sequence
         # use a100 values for SFR and Mstar
 
@@ -953,16 +979,23 @@ class matchedcats():
         flag2 = (self.allcats.a100Flag ==1) & (self.allcats.gswFlag == 0) & a100_flag_allcats
         print("number of those NOT in GSWLC = ",sum(flag2))
 
-        x1 = self.allcats['logMstarMcGaugh']
 
+        if useTaylor:
+            x1 = self.allcats['logMstarTaylor_1']
+        else:
+            x1 = self.allcats['logMstarMcGaugh']
 
         print('number in flag2 = ',sum(flag2))
-        if correctMass:
+        if correctMass & (not useTaylor):
             x1 = self.correctMcGaughMass(x1)
 
             xlabel = '$McGaugh_{corrected} \ \log_{10}(M_\star/M_\odot)$'
             outfile1 = 'ssfrmstar-a100-correctedMstar.pdf'
-            outfile2 = 'ssfrmstar-a100-correctedMstar.png'                        
+            outfile2 = 'ssfrmstar-a100-correctedMstar.png'
+        elif useTaylor:
+            xlabel = '$Taylor \ \log_{10}(M_\star/M_\odot)$'
+            outfile1 = 'ssfrmstar-a100-Taylor.pdf'
+            outfile2 = 'ssfrmstar-a100-Taylor.png'                        
         else:
             xlabel = '$McGaugh \ \log_{10}(M_\star/M_\odot)$'
             outfile1 = 'ssfrmstar-a100.pdf'
