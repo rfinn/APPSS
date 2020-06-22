@@ -102,7 +102,14 @@ def fitparab(x,a,b,c):
     return a*x**2+b*x+c
 
     
-
+def ratioerror(a,b):
+    # compute error in ratio
+    # assuming errors are the sqrt of counts
+    # f = a/b
+    # err_f = (1/b)**2 err_a**2 + (a/b**2)**2 err_b**2
+    # err_f = (1/b)**2 a + (a/b**2)**2 b
+    
+    return a/b,a/b*(1/b+a/b**2)
     
 def plotelbaz():
     xe=np.arange(8.5,11.5,.1)
@@ -578,7 +585,10 @@ class matchedcats():
     def figa_gswlc(self):
         # figure a is catalog specific quantities
         
-        
+        # here I am requiring that is has a valid stellar mass from GSWLC
+        # AND reliable SDSS photometry.
+        # but why do we need reliable sdss photometry for this?
+        # Answer: because we are using our corrected g-i color
         gsw_flag = (self.a100gsw.logMstar > 0) & (self.a100gsw.photFlag_gi_2 == 1)
         flag1 = (self.a100gsw.a100Flag == 1) & (self.a100gsw.gswFlag ==1) & gsw_flag 
         x1 = self.a100gsw.logMstar[flag1]
@@ -1570,6 +1580,78 @@ class matchedcats():
         for i in range(len(a100)):
             ra = allcoords[i].ra.radian
             #ax.scatter(
+    def detection_fractions(self):
+        # make a histogram showing fraction of a100 detected
+        # as a function of stellar mass
+        #
+        # GSWLC
+        # NSA
+        # W1
+        # W4
+        # NUV
+        #
+        # use the a100 catalog that is matched to all the others
+        # a100-sdss-wise-nsa-GSWLC2.fits
+        #
+        # this is read in as allcats
+
+        ### LIMIT TO OVERLAP REGION ###
+        ramin = 140.
+        ramax = 230.
+        decmin = 0.
+        decmax = 35.
+        zmax = 0.05
+        vmax = 15000
+
+        cat = self.allcats
+        overlapFlag = (cat['RAdeg_OC'] > ramin) &\
+          (cat['RAdeg_OC'] < ramax) &\
+          (cat['DECdeg_OC'] > decmin) &\
+          (cat['DECdeg_OC'] < decmax) &\
+          (cat['Vhelio'] < vmax) 
+        # cull a100
+
+
+        flags = [self.allcats['nsaFlag']==1,\
+                 self.allcats['gswFlag']==1,\
+                 self.allcats['w1_mag'] > 0.,\
+                 self.allcats['w4_mag'] > 0.,\
+                 self.allcats['SERSIC_ABSMAG'][:,1] < 0.,\
+                 self.allcats['logMstar'] > 0,\
+                 self.allcats['a100Flag']==1]
+        baseflag = self.allcats['photFlag_gi_1'] == 1 & overlapFlag & (self.allcats['logMstarTaylor_1'] > 6)& (self.allcats['logMstarTaylor_1'] < 11.5)
+        ylabels = ['NSA','GSWLC2','W1','W4','NUV','GSWLC2 logMstar','A100']
+        symbols = ['o','s','^','D','*','v','D']
+        fig,ax = plt.subplots(1,1,figsize=(10,6))
+        #plt.subplots_adjust(bottom=.15,left=.12)
+        
+        x = self.allcats['logMstarTaylor_1']
+        mybins = np.linspace(min(x),max(x),20)
+        t= np.histogram(x[baseflag],bins=mybins)
+        ytot = t[0]
+        xtot = t[1]
+        # calculate the position of the bin centers        
+        xplt = 0.5*(xtot[0:-1]+xtot[1:])        
+        for i,y in enumerate(flags[0:-2]):
+            t = np.histogram(x[flags[i]& baseflag],bins=mybins)
+            frac,yerr = ratioerror(t[0],ytot)
+            
+            if i == 0:
+                ax.plot(xplt,frac,'ko',color=mycolors[i],marker=symbols[i],markersize=16,label=ylabels[i],mfc='none')
+            else:
+                ax.plot(xplt,frac,'ko',color=mycolors[i],marker=symbols[i],markersize=8+i,label=ylabels[i])
+            plt.errorbar(xplt,frac,yerr=yerr,color=mycolors[i])
+
+        fig.legend(loc='center right')
+        plt.subplots_adjust(right=.8)
+        plt.xlabel(r'$Taylor \ \log_{10}(M_\star/M_\odot) $',fontsize=18)
+        plt.ylabel(r'$Fraction\  of \ A100-SDSS\ Galaxies $',fontsize=18)
+        plt.axhline(y=1,ls=':',color='k')
+        plt.ylim(-.05,1.09)
+        output = 'a100_detection_frac.png'
+        plt.savefig(output)
+        output = 'a100_detection_frac.pdf'
+        plt.savefig(output)
 
     
 class calibsfr():
@@ -1872,6 +1954,7 @@ class calibsfr():
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.png')
 
+        
 def paperplots():
     p.figure1()
 
