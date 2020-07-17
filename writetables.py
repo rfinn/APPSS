@@ -16,8 +16,12 @@ class latextable():
         self.tab = fits.getdata(tablepath+'a100-sdss-wise.fits')
         # the next table has the NSA data appended to the end columns
         # it contains the full NSA, but the first rows should be line-matched to the a100-sdss-wise
-        self.tab2 = fits.getdata(tablepath+'full-a100-sdss-wise-nsa.fits')
 
+        ### THIS IS THE WRONG TABLE
+        ### SHOULD BE USING a100-sdss-wise-nsa-gswlcA2.fits
+        self.tab2 = fits.getdata(tablepath+'full-a100-sdss-wise-nsa-gswlcA2.fits')
+
+        
         self.tab2 = self.tab2[0:len(self.tab)] # trim table to keep only A100 rows
         print('length of tab2 = ',len(self.tab2),' should be 31502')
         self.agcdict2=dict((a,b) for a,b in zip(self.tab2['AGC'],np.arange(len(self.tab2['AGC']))))
@@ -59,11 +63,11 @@ class latextable():
         # gamma_g
         self.gammag_err = 0.35*np.sqrt(self.tab['cModelMagErr_g']**2 + self.mw_ext_g_err**2 + (5/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2)
         zero_err_flag = self.tab['absMag_g_corr'] >= -17
-        self.gammag_err[zero_err_flag] = np.zeros(np.sum(zero_err_flag))
+        self.gammag_err[zero_err_flag] = np.zeros(np.sum(zero_err_flag),'d')
         # gamma_i
         self.gammai_err = 0.15*np.sqrt(self.tab['cModelMagErr_i']**2 + self.mw_ext_i_err**2 + (5/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2)
         zero_err_flag = self.tab['absMag_i_corr'] >= -17
-        self.gammai_err[zero_err_flag] = np.zeros(np.sum(zero_err_flag))
+        self.gammai_err[zero_err_flag] = np.zeros(np.sum(zero_err_flag),'d')
 
         # internal extinction
 
@@ -83,6 +87,9 @@ class latextable():
         #self.gmi_corr_err = np.sqrt(self.tab['cModelMagErr_g']**2 + self.tab['cModelMagErr_i']**2 + self.mw_ext_i_err**2 + self.mw_ext_g_err**2 + self.internal_ext_g_err**2 + self.internal_ext_i_err**2)
         # use 0.02 for uncertainty of galactic extinction
         self.gmi_corr_err = np.sqrt(self.tab['cModelMagErr_g']**2 + self.tab['cModelMagErr_i']**2 + .02**2 + .02**2 + self.internal_ext_g_err**2 + self.internal_ext_i_err**2)
+        ###################################
+        ### STELLAR MASS
+        ###################################
         
         # logMstarTaylor
         self.logMstarTaylor_err = np.sqrt(0.49*self.gmi_corr_err**2 + 0.16*self.absMag_i_corr_err**2)
@@ -92,15 +99,27 @@ class latextable():
         self.logMstarMcGaugh_err = 0.4*self.absMag_W1_err
         # SFR NUV_corr
 
+        ###################################
+        ### SFR
+        ###################################
+
+        # replace inf values in w4_mag_err with 0.2
+        # (these had error = 0 in catalog from Dustin)
+        flag = self.tab['w4_mag_err'] == np.inf
+        self.tab['w4_mag_err'][flag] = 0.2*np.ones(sum(flag),'f')
         
         # SFR 22
-        self.logSFR22_KE_err = np.sqrt(0.16*self.tab['w4_mag_err']**2 + (2/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2)
+        self.logSFR22_KE_err = np.array(np.sqrt(0.16*self.tab['w4_mag_err']**2 + (2/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2),'d')
 
-        self.logSFR_NUV_KE_err = np.sqrt(0.16*self.tab2['SERSIC_ABSMAG'][:,1]**2 + (2/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2)
+        self.logSFR_NUV_KE_err = np.array(np.sqrt(0.16*self.tab2['SERSIC_ABSMAG'][:,1]**2 + (2/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2),'d')
 
         # hold on to your hat for this one...
 
         #A = 1/22*np.power(10,-1*(self.tab['w4_mag']+6.62)/2.5) + 2.26/0.23*np.power(10,-1*self.tab2['SERSIC_ABSMAG'][:,1]/2.5)
+
+        ###  NEED TO FIX THIS SO THAT I'M ONLY CALCULATING ERRORS
+        ###  FOR GALAXIES THAT HAVE VALID UV AND IR MEASUREMENTS
+        ###  OTHERWISE WE GET INF IN ERRORS
         A_w4 =  1/22*np.power(10,-1*(self.tab['w4_mag']+6.62)/2.5)
         A_nuv = 2.26/0.23*np.power(10,-1*self.tab2['SERSIC_ABSMAG'][:,1]/2.5)
         A = A_w4 + A_nuv
@@ -108,7 +127,8 @@ class latextable():
         sigsq_d = (2/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2
         sigsq_nuv = A_nuv**2*1./self.tab2['SERSIC_AMIVAR'][:,1]
         sigsq_w4 = A_w4**2*self.tab['w4_mag_err']**2
-        self.logSFR_NUVIR_KE_err = np.sqrt(sigsq_d + (1./A/2.5)**2*(sigsq_nuv + sigsq_w4))
+        #self.logSFR_NUVIR_KE_err = np.zeros(len(self.tab),'d')
+        self.logSFR_NUVIR_KE_err = np.array(np.sqrt(sigsq_d + (1./A/2.5)**2*(sigsq_nuv + sigsq_w4)),'d')
         self.sigsq_nuv = sigsq_nuv
         self.A_w4 = A_w4
         self.A_nuv = A_nuv
@@ -139,8 +159,24 @@ class latextable():
         inf_flag = np.isinf(self.sfrnuvir_err)
         print('galaxies with UV+IR sfr err = inf')
         printindices = np.arange(len(inf_flag))[inf_flag]
+
+        # setting GSWLC entries to -99 if no match
+        gswflag = (self.tab2['logMstar'] > 0) 
+        self.gsw_sfr = -99*np.ones(len(self.tab2),'f')
+        self.gsw_mstar = -99*np.ones(len(self.tab2),'f')        
+        self.gsw_sfr[gswflag] = self.tab2['logSFR'][gswflag]
+        self.gsw_mstar[gswflag] = self.tab2['logMstar'][gswflag]   
+        
+        
+        #
+        # error in sfr22_err is infinity for some
+        #
+        # traces to some entries with w4_mag_err = inf
+        # even though these galaxies have reasonable (and not necessarily faint)
+        # magnitudes
+        #
         for i in printindices:
-            print('{0:02d} {1:.2f} {2:.2f} {3:.2f} {4:.2f} {5:.2f} {6:.2f} {7:.2f} {8:.2e} {9:.2e} {10:.2e}'.format(i,self.sfr22[i],self.sfr22_err[i],self.sfrnuv[i],self.sfrnuv_err[i],self.sfrnuvir[i],self.sfrnuvir_err[i],self.tab2['SERSIC_ABSMAG'][:,1][i],1./np.sqrt(self.tab2['SERSIC_AMIVAR'][:,1][i]),self.A_w4[i],self.A_nuv[i]))
+            print('{0:02d} {1:.2f} {2:.2f} {3:.2f} {4:.2f} {5:.2e} {6:.2e} {7:.2f} {8:.2f} {9:.2f} {10:.2f} {11:.2e} {12:.2e} {13:.2e} {14:.2f}'.format(i,self.sfr22[i],self.sfr22_err[i],self.tab['w4_mag_err'][i],self.tab['Dist'][i],self.tab['sigdist'][i],self.sfrnuv[i],self.sfrnuv_err[i],self.sfrnuvir[i],self.sfrnuvir_err[i],self.tab2['SERSIC_ABSMAG'][:,1][i],1./np.sqrt(self.tab2['SERSIC_AMIVAR'][:,1][i]),self.A_w4[i],self.A_nuv[i],self.tab['w4_mag'][i]))
 
     def print_table1(self):
         outfile = open(latextablepath+'table1.tex','w')
@@ -150,17 +186,22 @@ class latextable():
         outfile.write('\\setlength\\tabcolsep{3.0pt} \n')
         outfile.write('\\tablenum{1} \n')
         outfile.write('\\caption{Basic Optical Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\label{tab:catalog1}} \n')
-        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
+        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline \n')
         outfile.write('\\toprule \n')
-        outfile.write('AGC &	Flag &	SDSS objID & unWISE object ID & RA &	DEC &	V$_{helio}$ &	D &	$\sigma_D$  &	Ext$_g$	& Ext$_i$	& expAB$_r$  & $\sigma_{expAB_r}$ &	cmodel$_i$ & $\sigma_{cmodel_i}$ \\\\ \n')
-        outfile.write('& & & & J2000 & J2000 & $\\kms$ & Mpc & Mpc & mag & mag & & & mag & mag \\\\ \n')
-        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) \\\\ \n')
+        outfile.write('AGC &	Flag &	SDSS objID  & RA &	DEC &	V$_{helio}$ &	D &	$\sigma_D$  &	Ext$_g$	& Ext$_i$	& expAB$_r$  & $\sigma_{expAB_r}$ &	cmodel$_i$ & $\sigma_{cmodel_i}$ \\\\ \n')
+        outfile.write('& & & J2000 & J2000 & $\\kms$ & Mpc & Mpc & mag & mag & & & mag & mag \\\\ \n')
+        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14)  \\\\ \n')
         outfile.write('\\midrule \n')
         outfile.write('\\hline \n')
         for i in range(25): # print first N lines of data
             # AGC photflag sdss_objid wiseobjid RA DEC vhelio D D_err Ext_g Ext_i expABr err cmodelI err
-            s = '{0:d} & {1:d} & {2:d} & {3:d}& {4:9.6f}&{5:9.5f} & {6:d} & {7:.1f} & {8:.1f} &  {9:.2f} & {10:.2f}& {11:.2f}& {12:.2f}& {13:.2f} &{14:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['unwise_objid'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
+            
+            ##
+            ## REMOVING WISE ID (JULY 16,2020)
+            ##
+            #s = '{0:d} & {1:d} & {2:d} & {3:d}& {4:9.6f}&{5:9.5f} & {6:d} & {7:.1f} & {8:.1f} &  {9:.2f} & {10:.2f}& {11:.2f}& {12:.2f}& {13:.2f} &{14:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['unwise_objid'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
+            s = '{0:d} & {1:d} & {2:d} & {3:9.6f}&{4:9.5f} & {5:d} & {6:.1f} & {7:.1f} &  {8:.2f} & {9:.2f}& {10:.2f}& {11:.2f}& {12:.2f} &{13:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])            
             outfile.write(s)
 
         outfile.write('\\bottomrule \n')
@@ -188,14 +229,14 @@ class latextable():
         outfile.write('\\setlength\\tabcolsep{1.0pt} \n')
         outfile.write('\\tablenum{2}\n')
         outfile.write('\\caption{Derived Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\\label{tab:catalog2}}\n')
-        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
+        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline\n')
         outfile.write('\\toprule\n')
         #outfile.write('AGC & $\\gamma_g$ & $\\sigma_{\\gamma_g}$ & $\\gamma_i$ & $\\sigma_{\\gamma_i}$ & M$_{icorr}$ &	$\\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star, Taylor}$ &	$\\sigma_{log M_{\\star,Taylor}}$  & log M$_{\\star, McGaugh}$ &	$\\sigma_{log M_{\\star, McGaugh}}$ & SFR$_{22}$ & $\\sigma_{log SFR_{22}}$ & ${SFR_{NUV}}$ & $\\sigma_{log SFR_{NUV}}$ & SFR$_{NUVIR}$ & $\\sigma_{log SFR_{UVIR}}$ & M$_{HI}$ & $\\sigma_{M_{HI}}$  \\\\\n')
-        outfile.write('AGC & $\\gamma_g$ &  $\\gamma_i$  & M$_{icorr}$ &	$\\rm \\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$  & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$ & logSFR$_{22}$ & $\\rm \\sigma_{log SFR_{22}}$ & $\\rm {SFR_{NUV}}$ & $\\rm \\sigma_{log SFR_{NUV}}$ & logSFR$\\rm _{NUVIR}$ & $\\rm \\sigma_{log SFR_{UVIR}}$ & M$_{HI}$ & $\\rm \\sigma_{M_{HI}}$  \\\\\n')
-        outfile.write('&   & &  & &	& & Taylor & Taylor  & McGaugh & McGaugh & & &  & &  &  & &   \\\\\n')
-        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm (M_\\odot ~yr^{-1})$ & $\\rm log(M_\\odot~ yr^{-1})$ & $\\rm log(M_\\odot) yr^{-1}$ & $log(M_\\odot)$ & $log(M_\\odot)$ \\\\\n')
-        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19) \\\\\n')
+        outfile.write('AGC & $\\gamma_g$ &  $\\gamma_i$  & M$_{icorr}$ &	$\\rm \\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$  & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$ & log M$_{\\star}$ & logSFR$_{22}$ & $\\rm \\sigma_{log SFR_{22}}$  & logSFR$\\rm _{NUVcor}$ & $\\rm \\sigma_{log SFR_{NUVcor}}$  & logSFR & M$_{HI}$ & $\\rm \\sigma_{M_{HI}}$  \\\\\n')
+        outfile.write('&   & &  & &	& & Taylor & Taylor  & McGaugh & McGaugh &  GSWLC & & &  & & GSWLC &  &   \\\\\n')
+        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$& $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$  & $\\rm log(M_\\odot) yr^{-1}$ &  $log(M_\\odot~yr^{-1})$ & $log(M_\\odot)$ & $log(M_\\odot)$    \\\\\n')
+        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19)  \\\\\n')
         outfile.write('\\midrule\n')
         outfile.write('\\hline\n')
         for i in range(25):
@@ -204,7 +245,7 @@ class latextable():
             except KeyError:
                 print(self.tab['AGC'][i])
             #print(self.tab['AGC'][i],j,self.tab2['AGC'][j])
-            s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f} &{17:.2f} & {18:.2f}  \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],self.tab['gamma_i'][i],self.tab['absMag_i_corr'][i],self.absMag_i_corr_err[i],self.tab['gmi_corr'][i],self.gmi_corr_err[i],self.tab['logMstarTaylor'][i],self.logMstarTaylor_err[i],self.tab['logMstarMcGaugh'][i],self.logMstarMcGaugh_err[i],self.sfr22[i],self.sfr22_err[i], self.sfrnuv[i],self.sfrnuv_err[i], self.sfrnuvir[i],self.sfrnuvir_err[i],self.tab['logMH'][i],self.tab['siglogMH'][i])
+            s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f}&{17:.2f}&{18:.2f}  \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],self.tab['gamma_i'][i],self.tab['absMag_i_corr'][i],self.absMag_i_corr_err[i],self.tab['gmi_corr'][i],self.gmi_corr_err[i],self.tab['logMstarTaylor'][i],self.logMstarTaylor_err[i],self.tab['logMstarMcGaugh'][i],self.logMstarMcGaugh_err[i],self.gsw_mstar[i],self.sfr22[i],self.sfr22_err[i], self.sfrnuvir[i],self.sfrnuvir_err[i],self.gsw_sfr[i],self.tab['logMH'][i],self.tab['siglogMH'][i])
             outfile.write(s)
         outfile.write('\\bottomrule\n')
         outfile.write('\\hline\n')
@@ -268,11 +309,11 @@ class latextable():
         myDate = dateTimeObj.strftime("%d-%b-%Y")
         tab1 = Table([self.tab['AGC'],self.tab['sdssPhotFlag'],self.tab['objID_1'],self.tab['unwise_objid'],self.tab['RAdeg_Use'],self.tab['DECdeg_Use'],self.tab['Vhelio'],self.tab['Dist'],self.tab['sigDist'],self.tab['extinction_g'],self.tab['extinction_i'],self.tab['expAB_r'],self.expAB_r_err,self.tab['cModelMag_i'],self.tab['cModelMagErr_i']], \
                      names=['AGC','sdssPhotFlag','sdss_objid','unwise_objid','RA','DEC','Vhelio','Dist','sigDist','extinction_g','extinction_i','expAB_r','expAB_r_err','cModelMag_i','cModelMagErr_i'])
-        tab1.write(tablepath+'durbala2020-table1.'+myDate+'.fits',format='fits')
+        tab1.write(tablepath+'durbala2020-table1.'+myDate+'.fits',format='fits',overwrite=True)
 
         tab2 = Table([self.tab['AGC'],self.tab['gamma_g'],self.tab['gamma_i'],self.tab['absMag_i_corr'],self.absMag_i_corr_err,self.tab['gmi_corr'],self.gmi_corr_err,self.tab['logMstarTaylor'],self.logMstarTaylor_err,self.tab['logMstarMcGaugh'],self.logMstarMcGaugh_err,self.sfr22,self.sfr22_err, self.sfrnuv,self.sfrnuv_err, self.sfrnuvir,self.sfrnuvir_err,self.tab['logMH'],self.tab['siglogMH']],\
                      names=['AGC','gamma_g','gamma_i','absMag_i_corr','absMag_i_corr_err','gmi_corr','gmi_corr_err','logMstarTaylor','logMstarTaylor_err','logMstarMcGaugh','logMstarMcGaugh_err','logSFR22','logSFR22_err', 'logSFRNUV','logSFRNUV_err', 'logSFRNUVIR','logSFRNUVIR_err','logMH','logMH_err'])
-        tab2.write(tablepath+'durbala2020-table2.'+myDate+'.fits',format='fits')
+        tab2.write(tablepath+'durbala2020-table2.'+myDate+'.fits',format='fits',overwrite=True)
         pass
 if __name__ == '__main__':
     t = latextable()

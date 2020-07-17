@@ -1,4 +1,55 @@
 #!/usr/bin/env python
+'''
+GOALS:
+- match A100 catalog to:
+  - sdss phot cat
+  - unwise matches
+
+- match a100-sdss-wise cat to:
+  - nsa
+  - gswlc
+  - s4g
+- this calculates match statistics for full surveys
+- re-do match for overlap regions
+  - print statistics for this match too
+- produces catalogs for OVERLAP REGION ONLY
+
+- also matches full a100 to other catalogs to produce 
+  one catalog with everything
+  - this cuts the nsa and gswlc by vr < 15500 before matching to a100 to save memory
+
+USAGE:
+
+- to create catalogs for overlap regions:
+
+  python ~/github/APPSS/match_catalogs.py --matchoverlap
+
+- to create catalog for full a100 table:
+
+  python ~/github/APPSS/match_catalogs.py --matchoverlap
+
+OUTPUTS:
+
+- a100-sdss.fits (FULL A100)
+  - a100 matched to sdss phot
+- a100-sdss-wise.fits (FULL A100)
+  - a100+sdss phot matched to unwise
+- a100-nsa.fits (OVERLAP REGION)
+  - a100 matched to NSA in OVERLAP REGION
+- a100-gswlcA2.fits (OVERLAP REGION)
+  - a100 matched to GSWLCA-2 in OVERLAP REGION
+- a100-s4g.fits (OVERLAP REGION)
+  - a100 matched to S4G in OVERLAP REGION
+
+- full-a100-sdss-wise-nsa-gswlcA2.fits (FULL A100)
+ - a100+sdss+wise matched to nsa
+ - then matched to gswlc
+ - one line for a100 entry
+
+
+'''
+
+
 import numpy as np
 import numpy.ma as ma
 import os
@@ -344,6 +395,9 @@ class gswlc(phot_functions):
         - matched tables in topcat according to Adriana's directions
           - Sky match (RA, DEC), 0.5" error
           - output is gswlc-A2-sdssphot.fits
+
+        - redid this with sdss phot file that Adriana matches by sdss objid
+        - saved ut as gswlc-A2-sdssphot.v2.fits
         '''
         # read in gswlc-A2-sdssphot.fit catalog
         # this is the
@@ -399,6 +453,14 @@ class match2a100sdss():
         # read in nsa
         self.nsa = fits.getdata(nsacat)
         a100 = self.a100sdss
+        
+        # try nsa catalog to keep local galaxies only
+        # use vmax of a100 plus a margin of error (500 km/s)
+
+        flag = self.nsa['Z']*3e5 < 20000
+        self.nsa = self.nsa[flag]
+
+        
         print('FULL CATALOGS, BEFORE MATCHING')
         print('total number in A100 = ', len(a100))
         print('total number in NSA = ',len(self.nsa))
@@ -476,7 +538,7 @@ class match2a100sdss():
     def calc_sfrnuv_ke(self):
         # distance is a100 Distance when available
         # otherwise use SDSS NSA ZDIST
-        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
+        distance = self.a100sdsswisensa['Dist']#*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
         # NUV is 230 nm, according to Kennicutt & Evans
         wavelength_NUV = 230.e-9*u.m
         freq_NUV = c.c/wavelength_NUV
@@ -490,8 +552,12 @@ class match2a100sdss():
         dist = 10.*u.pc
         self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
         # calculate using A100 distances
-        nuv_mag = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
-        fnu_nuv = 3631*10**(-1*nuv_mag/2.5)*u.Jy
+        nuv_mag = np.zeros(len(self.a100sdsswisensa),'f')
+        fnu_nuv = np.zeros(len(self.a100sdsswisensa),'f')*u.Jy
+        flagNUV = self.a100sdsswisensa['SERSIC_NMGY'][:,1] > 0.
+
+        nuv_mag[flagNUV] = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1][flagNUV])
+        fnu_nuv[flagNUV] = 3631*10**(-1*nuv_mag[flagNUV]/2.5)*u.Jy
         self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
 
 
@@ -502,11 +568,12 @@ class match2a100sdss():
         # need to convert W4 flux from vega magnitude to Jansky
         # AB to Vega conversion is about 6 mag for W4
         w4_ab_mag = self.a100sdsswisensa['w4_mag']+6.620
-        
+
+        flag22 = self.a100sdsswisensa['w4_mag'] > 0
         # flux zp in AB mag is 3630 Jy
-        fluxzp_22_jy = 3631.*u.Jy
-        
-        self.Fnu22 = fluxzp_22_jy*10**(-1*w4_ab_mag/2.5)
+        fluxzp_22_jy = 3631.
+        self.Fnu22 = np.zeros(len(flag22),'f')*u.Jy
+        self.Fnu22[flag22] = fluxzp_22_jy*10**(-1*w4_ab_mag[flag22]/2.5)*u.Jy
         # caculate nuFnu22
         self.nuFnu22 = self.Fnu22*freq_22
         # then calculate nu L_nu, using distance
@@ -515,11 +582,13 @@ class match2a100sdss():
         # correct NUV luminosity by IR flux
         myunit = self.nuLnu_NUV.unit
         self.nuLnu_NUV_cor = np.zeros(len(self.nuLnu_NUV))*myunit
-        flag = self.a100sdsswisensa['w4_mag'] > 0.
-        #self.nuLnu_NUV_cor = self.nuLnu_NUV               
-        self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
-        self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
+        #self.nuLnu_NUV_cor = self.nuLnu_NUV
 
+        # don't need these two lines b/c I set nuLnu22 = 0 if w4_mag = 0
+        #self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
+        #self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
+        flag = flag22 & flagNUV
+        self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
         # need relation for calculating SFR from UV only
         #
         # eqn 12
@@ -528,21 +597,34 @@ class match2a100sdss():
         # 24um - logCx = 42.69
         # Halpha - log Cx = 41.27
         
-        self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.value)+np.log10(9.52141e13) - 43.17
-        self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.value)+np.log10(9.52141e13) - 43.17
+        #self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.value)+np.log10(9.52141e13) - 43.17
+        #self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.value)+np.log10(9.52141e13) - 43.17
+        self.logSFR_NUV_KE = -99*np.ones(len(self.nuLnu_NUV))
+        self.logSFR_NUVIR_KE = -99*np.ones(len(self.nuLnu_NUV))        
+        
+        self.logSFR_NUV_KE[flagNUV] = np.log10(self.nuLnu_NUV.cgs.value[flagNUV]) - 43.17
+        self.logSFR_NUVIR_KE[flag] = np.log10(self.nuLnu_NUV_cor.cgs.value[flag]) - 43.17
 
         # write columns out to table
         c0 = MaskedColumn(self.nuLnu_NUV,name='nuLnu_NUV')        
         c1 = MaskedColumn(self.logSFR_NUV_KE,name='logSFR_NUV_KE')
         c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR_NUVIR_KE')        
         self.a100sdsswisensa.add_columns([c0,c1,c2])
-
+        self.a100sdsswisensa.write(tabledir+'/a100-sdss-wise-nsa.fits',overwrite=True)
 
     def match_gswlc(self,gswcat):
         a100 = self.a100sdss
         print(gswcat)
         #gsw = ascii.read(gswcat)
         self.gsw = fits.getdata(gswcat)
+        
+        # try gsw catalog to keep local galaxies only
+        # use vmax of a100 plus a margin of error (500 km/s)
+
+        flag = self.gsw['Z']*3e5 < 20000
+        self.gsw = self.gsw[flag]
+
+        
         # match to agc     
         velocity1 = a100.Vhelio
         velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
@@ -647,8 +729,8 @@ class match2a100sdss():
         print('number in S4G but not in A100 = ',sum(~a100_matchflag & s4g_matchflag))
 
         # define overlap region
-        ramin = 140
-        ramax = 230
+        ramin = 138
+        ramax = 232
         decmin = 0
         decmax = 35
         # not sure what RA range is based on paper draft
@@ -664,6 +746,8 @@ class match2a100sdss():
         
         zmax = 0.01
         vmax = zmax*c.c.to('km/s').value
+        vmax = .01*3e5
+        print('vmax for S4G comparison = ',vmax)
         
         # keep overlap region
         keepa100 = (((self.a100sdss.RAdeg_OC > ramin) & (self.a100sdss.RAdeg_OC < ramax) &\
@@ -736,6 +820,12 @@ class matchfulla100():
         # read in nsa
         self.nsa = fits.getdata(nsacat)
         a100 = self.a100sdss
+        # try nsa catalog to keep local galaxies only
+        # use vmax of a100 plus a margin of error (500 km/s)
+
+        flag = self.nsa['Z']*3e5 < 20000
+        self.nsa = self.nsa[flag]
+        
         print('FULL CATALOGS, BEFORE MATCHING')
         print('total number in A100 = ', len(a100))
         print('total number in NSA = ',len(self.nsa))
@@ -775,10 +865,11 @@ class matchfulla100():
         
         # write out joined a100-sdss-nsa catalog
         # keep a100 galaxies only
+        # THIS IS OVERLAP REGION ONLY
         self.a100sdsswisensa[a100_matchflag].write(tabledir+'/full-a100-sdss-wise-nsa.fits',format='fits',overwrite=True)
 
     def calc_sfrnuv_ke(self):
-        distance = self.a100sdsswisensa['Dist']*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
+        distance = self.a100sdsswisensa['Dist']#*self.a100Flag + self.a100sdsswisensa['ZDIST']*3.e5/70.*(~self.a100Flag)
         # NUV is 230 nm, according to Kennicutt & Evans
         wavelength_NUV = 230.e-9*u.m
         freq_NUV = c.c/wavelength_NUV
@@ -787,14 +878,16 @@ class matchfulla100():
         #flux_10pc = 10.**((22.5-self.s.ABSMAG[:,1])/2.5)
         # assume ABSMAG is in AB mag, with ZP = 3631 Jy
         # NSA magnitudes are already corrected for galactic extinction
-        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
+        #flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
+        flagNUV = self.a100sdsswisensa['SERSIC_NMGY'][:,1] > 0.1
         # adjust Hubble constant from 100 to 70
-        flux_10pc 
+        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy 
         dist = 10.*u.pc
-        self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+        #self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
         # calculate using A100 distances
         nuv_mag = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
         fnu_nuv = 3631*10**(-1*nuv_mag/2.5)*u.Jy
+
         self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
 
         
@@ -816,11 +909,13 @@ class matchfulla100():
         
         # correct NUV luminosity by IR flux
         myunit = self.nuLnu_NUV.unit
-        self.nuLnu_NUV_cor = np.zeros(len(self.nuLnu_NUV))*myunit
-        flag = self.a100sdsswisensa['w4_mag'] > 0.
-        #self.nuLnu_NUV_cor = self.nuLnu_NUV               
+        self.nuLnu_NUV_cor = -99*np.ones(len(self.nuLnu_NUV))*myunit
+        flag22 = self.a100sdsswisensa['w4_mag'] > 0.
+        #self.nuLnu_NUV_cor = self.nuLnu_NUV
+        flag = flag22 & flagNUV        
+        ### adjust nuv luminosity for galaxies with a 22 um detection
         self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
-        self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
+        #self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
 
         # need relation for calculating SFR from UV only
         #
@@ -829,18 +924,31 @@ class matchfulla100():
         # NUV - log Cx = 43.17
         # 24um - logCx = 42.69
         # Halpha - log Cx = 41.27
+
+        # not sure what the extra term is here
+        #self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.value)+np.log10(9.52141e13) - 43.17
+        #self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.value)+np.log10(9.52141e13) - 43.17
+
+        self.logSFR_NUV_KE = -99*np.ones(len(self.nuLnu_NUV))
+        self.logSFR_NUVIR_KE = -99*np.ones(len(self.nuLnu_NUV))        
+
+        self.logSFR_NUV_KE[flagNUV] = np.log10(self.nuLnu_NUV.cgs.value[flagNUV]) - 43.17
+        self.logSFR_NUVIR_KE[flag] = np.log10(self.nuLnu_NUV_cor.cgs.value[flag]) - 43.17
         
-        self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.value)+np.log10(9.52141e13) - 43.17
-        self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.value)+np.log10(9.52141e13) - 43.17
+        #self.logSFR_NUV_KE = np.log10(self.nuLnu_NUV.cgs.value) - 43.17
+        #self.logSFR_NUVIR_KE = np.log10(self.nuLnu_NUV_cor.cgs.value) - 43.17
 
         # write columns out to table
         c0 = MaskedColumn(self.nuLnu_NUV,name='nuLnu_NUV')        
         c1 = MaskedColumn(self.logSFR_NUV_KE,name='logSFR_NUV_KE')
-        c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR_NUVIR_KE')        
-        self.a100sdsswisensa.add_columns([c0,c1,c2])
+        c2 = MaskedColumn(self.logSFR_NUVIR_KE,name='logSFR_NUVIR_KE')
+        c3 = MaskedColumn(flagNUV,name='flagNUV')
+        c4 = MaskedColumn(flag22,name='flag22')                        
+        self.a100sdsswisensa.add_columns([c0,c1,c2,c3,c4])
     def match_gswlc(self,gswcat):
         self.a100sdsswisensa = fits.getdata(tabledir+'/full-a100-sdss-wise-nsa.fits')
         a100 = Table(self.a100sdsswisensa)
+        
         # add column with NSA ra if it exists, otherwise RAdeg_Use
         nsaFlag = a100['nsaFlag'] == 1
         bestra = a100['RA']*nsaFlag + a100['RAdeg_Use']*~nsaFlag
@@ -851,6 +959,12 @@ class matchfulla100():
         print(gswcat)
         #gsw = ascii.read(gswcat)
         self.gsw = Table(fits.getdata(gswcat))
+        # try nsa catalog to keep local galaxies only
+        # use vmax of a100 plus a margin of error (500 km/s)
+
+        flag = self.gsw['Z']*3e5 < 20000
+        self.gsw = self.gsw[flag]
+        
         # match to agc     
         velocity1 = a100['Vhelio']
         velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
@@ -869,8 +983,8 @@ class matchfulla100():
         print('number in GSWLC but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
         # write out temp files
         #print('writing joined tables in two pieces ')
-        #a1002.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-left.fits',format='fits',overwrite=True)
-        #gsw2.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-right.fits',format='fits',overwrite=True)
+        a1002[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-left.fits',format='fits',overwrite=True)
+        gsw2[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-right.fits',format='fits',overwrite=True)
         print('Trying to join a1002 and gsw2')
         # join a100-sdss and nsa into one table
         joined_table = hstack([a1002[a100_matchflag],gsw2[a100_matchflag]])
@@ -895,20 +1009,30 @@ def make_a100sdss():
 
 
 if __name__ == '__main__':
-    make_a100sdss_flag = True
-    if make_a100sdss_flag:
+    import argparse
+    ###########################
+    ##### SET UP ARGPARSE
+    ###########################
+
+    parser = argparse.ArgumentParser(description ='Program to run simulation for LCS paper 2')
+    parser.add_argument('--matchoverlap', dest = 'overlap', default = False, action='store_true',help = 'set this to match catalogs in overlap region and write out catalogs for paper analysis.')
+    parser.add_argument('--matchfull', dest = 'full', default = False, action='store_true',help = 'set this to match catalogs to the full a100 catalog.  this will produce full-a100-sdss-wise-nsa-gswlcA2.fits, the full a100+sdss catalog with AALLL the other columns that you could ever want.')    
+
+    args = parser.parse_args()
+
+    if args.overlap:
         # this also creates WISE catalog
         make_a100sdss()
-    make_gswlc_sdss_flag = True
-    if make_gswlc_sdss_flag:
-            gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
-            # read in sdss phot, line-matched catalogs
-            g = gswlc(gswlc_file)
+        #gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
+
+        ### UDPATING JULY 6, 2020 TO USE CATALOG WITH
+        ### SDSS PHOT MATCHED BY OBJID INSTEAD OF BY RA, DEC
+        gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
+        # read in sdss phot, line-matched catalogs
+        g = gswlc(gswlc_file)
 
 
-    # next part - match a100 to other catalogs
-    match2a100Flag = True
-    if match2a100Flag:
+        # next part - match a100 to other catalogs
         a100sdsscat = tabledir+'/a100-sdss-wise.fits'
         a = match2a100sdss(a100sdss=a100sdsscat)
 
@@ -935,17 +1059,17 @@ if __name__ == '__main__':
         # match to S4G
         s4gcat = tabledir+'/spitzer.s4gcat_5173.tbl'
         a.match_s4g(s4gcat)
-    make_fulla100_flag = True
-    if make_fulla100_flag:
+
+    if args.full: 
         # this matches NSA to the full a100 and saves the resulting table
         # as opposed to matching to the restricted overlap region only
         # I think I am doing this so I can match to LCS or Virgo
         a100sdsscat = tabledir+'/a100-sdss-wise.fits'
         afull = matchfulla100(a100sdsscat)
         print('matching full a100 to full NSA')
-        nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'        
+        nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'
         afull.match_nsa(nsacat)
-        #print('matching full a100 to full GSWLC')        
+        print('matching full a100 to full GSWLC')        
         gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
         afull.match_gswlc(gsw)
 
