@@ -60,7 +60,7 @@ def plota100():
     allvert = [a100_vert_spring,a100_vert_fall_1,a100_vert_fall_2]
     for i in range(len(allvert)):
         if i == 0:
-            mylabel='A100'
+            mylabel='ALFALFA'
         else:
             mylabel='_nolegend_'
         plt.plot(allvert[i][:,0],allvert[i][:,1],'c--',color=a100color,lw=2.5,label=mylabel)
@@ -132,8 +132,8 @@ ax = fig.add_subplot(111)#, projection='lambert')
 
 all_ra = [nsa['RA'],gsw['RA'],a100['RAdeg_Use'],s4g['ra']]
 all_dec = [nsa['DEC'],gsw['DEC'],a100['DECdeg_Use'],s4g['dec']]
-labels = ['NSA','GSWLC2','A100','S4G']
-titles = ['(a) NSA','(c) GSWLC2','A100','(b) S4G']
+labels = ['NSA','GSWLC-2','ALFALFA','S4G']
+titles = ['(a) NSA','(c) GSWLC-2','ALFALFA','(b) S4G']
 myorder = [0,3,1]
 #myorder = [1]
 mycolors = ['k','0.7','b','r']
@@ -161,8 +161,8 @@ for i in myorder:
         plt.scatter(ra.degree, dec.degree,label=labels[i],s=5,c=mycolors[i],alpha=.3)
     else:
         print('got here')
-        flag = np.random.randint(0,len(ra),int(len(ra)/2))
-        plt.scatter(ra.degree[flag], dec.degree[flag],label='_nolegend_',s=3,c=mycolors[i],alpha=.01)
+        flag = np.random.randint(0,len(ra),int(len(ra)/10))
+        plt.scatter(ra.degree[flag], dec.degree[flag],label='_nolegend_',s=3,c=mycolors[i],alpha=.1)
         # OR
         plt.scatter(ra.degree[flag][0], dec.degree[flag][0],label=labels[i],s=3,c=mycolors[i])
         # don't like the hexbin
@@ -188,6 +188,7 @@ for i in myorder:
     plt.ylabel('$DEC \ (deg)$',fontsize=20)
     nsubplot += 1
 plt.savefig(plotdir+'surveys-skyplot.pdf')
+plt.savefig(plotdir+'fig5.pdf')
 plt.savefig(plotdir+'surveys-skyplot.png')
-
+plt.savefig(plotdir+'fig5.eps')
         

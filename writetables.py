@@ -1,7 +1,34 @@
 #!/usr/bin/env python
+'''
+GOAL:
+* write out tables for A100-SDSS paper (20 rows)
+* write out fits tables for full A100 sample
+
+OUTPUT:
+* table1.tex
+  - table 1 from Durbala+2020
+
+* table2.tex 
+  - table 2 from Durbala+2020
+
+* fits versions of table1 and table2
+  - Durbala2020.table1.DATE.fits
+  - Durbala2020.table2.DATE.fits
+
+USAGE:
+
+python writetables.py
+
+UPDATES:
+* 2020-08-06
+  - making empty array elements nan instead of, e.g. -99
+
+'''
+
+
 import numpy as np
 import os
-from astropy.io import fits
+from astropy.io import fits, ascii
 from astropy.table import Table
 from datetime import datetime
 
@@ -92,11 +119,19 @@ class latextable():
         ###################################
         
         # logMstarTaylor
-        self.logMstarTaylor_err = np.sqrt(0.49*self.gmi_corr_err**2 + 0.16*self.absMag_i_corr_err**2)
+        # reporting for galaxies with good sdss phot
+        self.logMstarTaylor_err = np.zeros(len(self.gmi_corr_err),'f')*np.nan
+
+        flag = self.tab['sdssPhotFlag'] == 1
+        self.logMstarTaylor_err[flag] = np.sqrt(0.49*self.gmi_corr_err[flag]**2 + 0.16*self.absMag_i_corr_err[flag]**2)
         
         # McGaugh
+        # reporting for all values
         self.absMag_W1_err = np.sqrt(self.tab['w1_mag_err']**2 +  (5/(self.tab['Dist']*np.log(10)))**2*self.tab['sigdist']**2)
-        self.logMstarMcGaugh_err = 0.4*self.absMag_W1_err
+        self.logMstarMcGaugh_err = 0.4*self.absMag_W1_err        
+        #flag = np.ones(len(self.tab))
+        #self.logMstarMcGaugh_err = np.empty(len(self.tab),'f')
+        #self.logMstarMcGaugh_err[flag] = 0.4*self.absMag_W1_err[flag]
         # SFR NUV_corr
 
         ###################################
@@ -132,28 +167,29 @@ class latextable():
         self.sigsq_nuv = sigsq_nuv
         self.A_w4 = A_w4
         self.A_nuv = A_nuv
-    def clean_sfrs(self):
+    def clean_arrays(self):
         '''
-        remove bogus values from SFR estimates
-        need to make a flag
+        remove bogus values from SFR estimates and other arrays with null values
+
         '''
         self.sfr22flag = (self.tab['w4_mag'] > 0) & (~np.isnan(self.tab['w4_mag']))
-        self.sfr22 = -99*np.ones(len(self.tab),'f')
-        self.sfr22_err = -99*np.ones(len(self.tab),'f')                
+        self.sfr22 = np.zeros(len(self.tab),'f')*np.nan
+        self.sfr22_err = np.zeros(len(self.tab),'f')*np.nan
         self.sfr22[self.sfr22flag] = self.tab['logSFR22_KE'][self.sfr22flag]
         self.sfr22_err[self.sfr22flag] = self.logSFR22_KE_err[self.sfr22flag]
 
         self.sfrnuvflag = self.tab2['SERSIC_ABSMAG'][:,1] < 0.
-        self.sfrnuv = -99*np.ones(len(self.tab),'f')
-        self.sfrnuv_err = -99*np.ones(len(self.tab),'f')                
+        self.sfrnuv = np.zeros(len(self.tab),'f')*np.nan
+        self.sfrnuv_err = np.zeros(len(self.tab),'f')*np.nan
 
         self.sfrnuv[self.sfrnuvflag] = self.tab2['logSFR_NUV_KE'][self.sfrnuvflag]
         self.sfrnuv_err[self.sfrnuvflag] = self.logSFR_NUV_KE_err[self.sfrnuvflag]
 
-        self.sfrnuvir = -99*np.ones(len(self.tab),'f')
-        self.sfrnuvir_err = -99*np.ones(len(self.tab),'f')                
+        self.sfrnuvir = np.zeros(len(self.tab),'f')*np.nan
+        self.sfrnuvir_err = np.zeros(len(self.tab),'f')*np.nan                
         flag = self.sfrnuvflag & self.sfr22flag
-        
+        # the above flag didn't work.  some -99 values still came through
+        flag = self.tab2['flagNUV'] & self.tab2['flag22']
         self.sfrnuvir[flag] = self.tab2['logSFR_NUVIR_KE'][flag]
         self.sfrnuvir_err[flag] = self.logSFR_NUVIR_KE_err[flag]
         inf_flag = np.isinf(self.sfrnuvir_err)
@@ -162,10 +198,17 @@ class latextable():
 
         # setting GSWLC entries to -99 if no match
         gswflag = (self.tab2['logMstar'] > 0) 
-        self.gsw_sfr = -99*np.ones(len(self.tab2),'f')
-        self.gsw_mstar = -99*np.ones(len(self.tab2),'f')        
+        self.gsw_sfr = np.zeros(len(self.tab2),'f')*np.nan
+        self.gsw_mstar = np.zeros(len(self.tab2),'f')*np.nan
+        
         self.gsw_sfr[gswflag] = self.tab2['logSFR'][gswflag]
-        self.gsw_mstar[gswflag] = self.tab2['logMstar'][gswflag]   
+        self.gsw_mstar[gswflag] = self.tab2['logMstar'][gswflag]
+        
+        self.gsw_sfr_err = np.zeros(len(self.tab2),'f')*np.nan
+        self.gsw_mstar_err = np.zeros(len(self.tab2),'f')*np.nan
+        
+        self.gsw_sfr_err[gswflag] = self.tab2['logSFR_err'][gswflag]
+        self.gsw_mstar_err[gswflag] = self.tab2['logMstar_err'][gswflag]   
         
         
         #
@@ -178,23 +221,45 @@ class latextable():
         for i in printindices:
             print('{0:02d} {1:.2f} {2:.2f} {3:.2f} {4:.2f} {5:.2e} {6:.2e} {7:.2f} {8:.2f} {9:.2f} {10:.2f} {11:.2e} {12:.2e} {13:.2e} {14:.2f}'.format(i,self.sfr22[i],self.sfr22_err[i],self.tab['w4_mag_err'][i],self.tab['Dist'][i],self.tab['sigdist'][i],self.sfrnuv[i],self.sfrnuv_err[i],self.sfrnuvir[i],self.sfrnuvir_err[i],self.tab2['SERSIC_ABSMAG'][:,1][i],1./np.sqrt(self.tab2['SERSIC_AMIVAR'][:,1][i]),self.A_w4[i],self.A_nuv[i],self.tab['w4_mag'][i]))
 
-    def print_table1(self):
-        outfile = open(latextablepath+'table1.tex','w')
+        # 
+        # fix stellar mass
+        #
+
+        ## mask sdss phot values if sdssPhotFlag != 1
+        ## arrays to mask for paper tab 2: gamma_g, gamma_i, absMag_i_corr, absMag_e_err,
+        ## gmi_corr, gmi_corr_err
+        maskflag = self.tab['sdssPhotFlag'] != 1
+        replacement = np.zeros(sum(maskflag))*np.nan
+        self.tab['gamma_g'][maskflag] = replacement
+        self.tab['gamma_i'][maskflag] = replacement
+        self.tab['absMag_i_corr'][maskflag] = replacement
+        self.absMag_i_corr_err[maskflag] = replacement
+        self.tab['gmi_corr'][maskflag] = replacement
+        self.gmi_corr_err[maskflag] = replacement
+        
+    def print_table1(self,nlines=10,filename=None):
+        '''write out latex version of table 1 '''
+        if filename is None:
+            fname=latextablepath+'table1.tex'
+        else:
+            fname = filename 
+        outfile = open(fname,'w')
+        
         outfile.write('\\begin{table*}%[ptbh!]\n')
         outfile.write('\\begin{center}\n')
         outfile.write('\\scriptsize\n')
         outfile.write('\\setlength\\tabcolsep{3.0pt} \n')
         outfile.write('\\tablenum{1} \n')
-        outfile.write('\\caption{Basic Optical Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\label{tab:catalog1}} \n')
+        outfile.write('\\caption{Basic Optical Properties of Cross-listed objects in the ALFALFA-SDSS Catalog.\label{tab:catalog1}  } \n')
         outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline \n')
         outfile.write('\\toprule \n')
         outfile.write('AGC &	Flag &	SDSS objID  & RA &	DEC &	V$_{helio}$ &	D &	$\sigma_D$  &	Ext$_g$	& Ext$_i$	& expAB$_r$  & $\sigma_{expAB_r}$ &	cmodel$_i$ & $\sigma_{cmodel_i}$ \\\\ \n')
-        outfile.write('& & & J2000 & J2000 & $\\kms$ & Mpc & Mpc & mag & mag & & & mag & mag \\\\ \n')
+        outfile.write('& & & J2000 & J2000 & $km~s^{-1}$ & Mpc & Mpc & mag & mag & & & mag & mag \\\\ \n')
         outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14)  \\\\ \n')
         outfile.write('\\midrule \n')
         outfile.write('\\hline \n')
-        for i in range(25): # print first N lines of data
+        for i in range(nlines): # print first N lines of data
             # AGC photflag sdss_objid wiseobjid RA DEC vhelio D D_err Ext_g Ext_i expABr err cmodelI err
             
             ##
@@ -208,10 +273,13 @@ class latextable():
         outfile.write('\\hline \n')
         outfile.write('\\end{tabular} \n')
         outfile.write('\\end{center} \n')
+        outfile.write('\\tablecomments{Table 1 is published in its entirety in the machine-readable format.  A portion is shown here for guidance regarding its form and content.}')        
         outfile.write('\\end{table*} \n')
         outfile.close()
-    def print_table2(self):
+    def print_table2(self,nlines=10,filename=None):
         '''
+        write out latex version of table 2
+
         changes from old verion:
         - remove Cluver stellar mass (2)
         - add error SFR22
@@ -220,7 +288,11 @@ class latextable():
 
         net gain of one column
         '''
-        outfile = open(latextablepath+'table2.tex','w')
+        if filename is None:
+            fname=latextablepath+'table2.tex'
+        else:
+            fname = filename 
+        outfile = open(fname,'w')
         outfile.write('\\begin{sidewaystable*}%[ptbh!]%\\tiny \n')
         outfile.write('\\begin{center}\n')
         outfile.write('\\tablewidth{0.5\\textwidth} \n')
@@ -228,65 +300,31 @@ class latextable():
         outfile.write('%\\footnotesize \n')
         outfile.write('\\setlength\\tabcolsep{1.0pt} \n')
         outfile.write('\\tablenum{2}\n')
-        outfile.write('\\caption{Derived Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\\label{tab:catalog2}}\n')
-        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
+        outfile.write('\\caption{Derived Properties of Cross-listed objects in the ALFALFA-SDSS Catalog.\\label{tab:catalog2}  }\n')
+        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
         outfile.write('\\hline\n')
         outfile.write('\\toprule\n')
         #outfile.write('AGC & $\\gamma_g$ & $\\sigma_{\\gamma_g}$ & $\\gamma_i$ & $\\sigma_{\\gamma_i}$ & M$_{icorr}$ &	$\\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star, Taylor}$ &	$\\sigma_{log M_{\\star,Taylor}}$  & log M$_{\\star, McGaugh}$ &	$\\sigma_{log M_{\\star, McGaugh}}$ & SFR$_{22}$ & $\\sigma_{log SFR_{22}}$ & ${SFR_{NUV}}$ & $\\sigma_{log SFR_{NUV}}$ & SFR$_{NUVIR}$ & $\\sigma_{log SFR_{UVIR}}$ & M$_{HI}$ & $\\sigma_{M_{HI}}$  \\\\\n')
-        outfile.write('AGC & $\\gamma_g$ &  $\\gamma_i$  & M$_{icorr}$ &	$\\rm \\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$  & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$ & log M$_{\\star}$ & logSFR$_{22}$ & $\\rm \\sigma_{log SFR_{22}}$  & logSFR$\\rm _{NUVcor}$ & $\\rm \\sigma_{log SFR_{NUVcor}}$  & logSFR & M$_{HI}$ & $\\rm \\sigma_{M_{HI}}$  \\\\\n')
-        outfile.write('&   & &  & &	& & Taylor & Taylor  & McGaugh & McGaugh &  GSWLC & & &  & & GSWLC &  &   \\\\\n')
-        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$& $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$  & $\\rm log(M_\\odot) yr^{-1}$ &  $log(M_\\odot~yr^{-1})$ & $log(M_\\odot)$ & $log(M_\\odot)$    \\\\\n')
-        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19)  \\\\\n')
+        outfile.write('AGC & $\\gamma_g$ &  $\\gamma_i$  & M$_{icorr}$ &	$\\rm \\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$  & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$ & log M$_{\\star}$& $\\rm \\sigma_{log M_{\\star}}$ & logSFR$_{22}$ & $\\rm \\sigma_{log SFR_{22}}$  & logSFR$\\rm _{NUVcor}$ & $\\rm \\sigma_{log SFR_{NUVcor}}$  & logSFR& $\\rm \\sigma_{logSFR}$ & M$_{HI}$ & $\\rm \\sigma_{M_{HI}}$  \\\\\n')
+        outfile.write('&   & &  & &	& & Taylor & Taylor  & McGaugh & McGaugh &  GSWLC &GSWLC& & &  & & GSWLC & GSWLC &  &   \\\\\n')
+        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$& $log(M_\\odot)$& $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$  & $\\rm log(M_\\odot) yr^{-1}$ &  $log(M_\\odot~yr^{-1})$&  $log(M_\\odot~yr^{-1})$ & $log(M_\\odot)$ & $log(M_\\odot)$    \\\\\n')
+        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19) &(20) &(21)  \\\\\n')
         outfile.write('\\midrule\n')
         outfile.write('\\hline\n')
-        for i in range(25):
+        for i in range(nlines):
             try:
                 j = self.agcdict2[self.tab['AGC'][i]]
             except KeyError:
                 print(self.tab['AGC'][i])
             #print(self.tab['AGC'][i],j,self.tab2['AGC'][j])
-            s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f}&{17:.2f}&{18:.2f}  \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],self.tab['gamma_i'][i],self.tab['absMag_i_corr'][i],self.absMag_i_corr_err[i],self.tab['gmi_corr'][i],self.gmi_corr_err[i],self.tab['logMstarTaylor'][i],self.logMstarTaylor_err[i],self.tab['logMstarMcGaugh'][i],self.logMstarMcGaugh_err[i],self.gsw_mstar[i],self.sfr22[i],self.sfr22_err[i], self.sfrnuvir[i],self.sfrnuvir_err[i],self.gsw_sfr[i],self.tab['logMH'][i],self.tab['siglogMH'][i])
+            s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f}&{17:.2f}&{18:.2f}&{19:.2f}&{20:.2f}  \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],self.tab['gamma_i'][i],self.tab['absMag_i_corr'][i],self.absMag_i_corr_err[i],self.tab['gmi_corr'][i],self.gmi_corr_err[i],self.tab['logMstarTaylor'][i],self.logMstarTaylor_err[i],self.tab['logMstarMcGaugh'][i],self.logMstarMcGaugh_err[i],self.gsw_mstar[i],self.gsw_mstar_err[i],self.sfr22[i],self.sfr22_err[i], self.sfrnuvir[i],self.sfrnuvir_err[i],self.gsw_sfr[i],self.gsw_sfr_err[i],self.tab['logMH'][i],self.tab['siglogMH'][i])
             outfile.write(s)
         outfile.write('\\bottomrule\n')
         outfile.write('\\hline\n')
         outfile.write('\\end{tabular}\n')
         outfile.write('\\end{center} \n')
-        outfile.write('\\end{sidewaystable*} \n')
-        outfile.close()
-    def print_table2_old(self):
-        outfile = open(tablepath+'table2.tex','w')
-        outfile.write('\\begin{sidewaystable*}%[ptbh!]%\\tiny \n')
-        outfile.write('\\begin{center}\n')
-        outfile.write('\\tablewidth{0.5\\textwidth} \n')
-        outfile.write('\\scriptsize \n')
-        outfile.write('%\\footnotesize \n')
-        outfile.write('\\setlength\\tabcolsep{1.0pt} \n')
-        outfile.write('\\tablenum{2}\n')
-        outfile.write('\\caption{Derived Properties of Cross-listed objects in the $\\alpha.100$-SDSS Catalog\\label{tab:catalog}}\n')
-        outfile.write('\\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}\n')
-        outfile.write('\\hline\n')
-        outfile.write('\\toprule\n')
-        outfile.write('AGC & $\\gamma_g$ & $\\sigma_{\\gamma_g}$ & $\\gamma_i$ & $\\sigma_{\\gamma_i}$ & M$_{icorr}$ &	$\\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star, Taylor}$ &	$\\sigma_{log M_{\\star,Taylor}}$ & log M$_{\\star, Cluver}$  &	$\\sigma_{log M_{\\star, Cluver}}$	& log M$_{\\star, McGaugh}$ &	$\\sigma_{log M_{\\star, McGaugh}}$ & SFR$_{22}$ &  ${SFR_{NUV}}$ & SFR$_{NUVIR}$ & M$_{HI}$ & $\\sigma_{M_{HI}}$  \\\\\n')
-        outfile.write(' & mag & mag & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $(M_\\odot) yr^{-1}$ & $(M_\\odot) yr^{-1}$ & $(M_\\odot) yr^{-1}$ & $log(M_\\odot)$ & $log(M_\\odot)$ \\\\\n')
-        outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19)& (20) \\\\\n')
-        outfile.write('\\midrule\n')
-        outfile.write('\\hline\n')
-        for i in range(25):
-            try:
-                j = self.agcdict2[self.tab['AGC'][i]]
-                sfruv = self.tab2['logSFR_NUV_KE'][j]
-                sfruvir = self.tab2['logSFR_NUVIR_KE'][j]
-            except KeyError:
-                print(self.tab['AGC'][i])
-                sfruv=0
-                sfruvir=0
-            #print(self.tab['AGC'][i],j,self.tab2['AGC'][j])
-            s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f} &{17:.2f} & {18:.2f} \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],0,self.tab['gamma_i'][i],0,self.tab['absMag_i_corr'][i],0,self.tab['gmi_corr'][i],0,self.tab['logMstarTaylor'][i],0,self.tab['logMstarCluver'][i],0,self.tab['logMstarMcGaugh'][i],0,self.tab['logSFR22_KE'][i],sfruv,sfruvir,self.tab['logMH'][i],self.tab['siglogMH'][i])
-            outfile.write(s)
-        outfile.write('\\bottomrule\n')
-        outfile.write('\\hline\n')
-        outfile.write('\\end{tabular}\n')
-        outfile.write('\\end{center} \n')
+        outfile.write('\\tablecomments{Table 2 is published in its entirety in the machine-readable format.  A portion is shown here for guidance regarding its form and content.}')
+        
         outfile.write('\\end{sidewaystable*} \n')
         outfile.close()
     def write_full_tables(self):
@@ -307,18 +345,54 @@ class latextable():
         # plus RA, DEC, vhelio, D(err)
         dateTimeObj = datetime.now()
         myDate = dateTimeObj.strftime("%d-%b-%Y")
-        tab1 = Table([self.tab['AGC'],self.tab['sdssPhotFlag'],self.tab['objID_1'],self.tab['unwise_objid'],self.tab['RAdeg_Use'],self.tab['DECdeg_Use'],self.tab['Vhelio'],self.tab['Dist'],self.tab['sigDist'],self.tab['extinction_g'],self.tab['extinction_i'],self.tab['expAB_r'],self.expAB_r_err,self.tab['cModelMag_i'],self.tab['cModelMagErr_i']], \
-                     names=['AGC','sdssPhotFlag','sdss_objid','unwise_objid','RA','DEC','Vhelio','Dist','sigDist','extinction_g','extinction_i','expAB_r','expAB_r_err','cModelMag_i','cModelMagErr_i'])
+
+        tab1 = Table([self.tab['AGC'],self.tab['sdssPhotFlag'],self.tab['objID_1'],\
+                      self.tab['RAdeg_Use'],self.tab['DECdeg_Use'],self.tab['Vhelio'],\
+                      self.tab['Dist'],self.tab['sigDist'],\
+                      self.tab['extinction_g'],self.tab['extinction_i'],\
+                      self.tab['expAB_r'],self.expAB_r_err,\
+                      self.tab['cModelMag_i'],self.tab['cModelMagErr_i']],
+                     names=['AGC','sdssPhotFlag','sdss_objid',\
+                            'RA','DEC','Vhelio',\
+                            'Dist','sigDist',\
+                            'extinction_g','extinction_i','expAB_r','expAB_r_err',\
+                            'cModelMag_i','cModelMagErr_i'])
         tab1.write(tablepath+'durbala2020-table1.'+myDate+'.fits',format='fits',overwrite=True)
 
-        tab2 = Table([self.tab['AGC'],self.tab['gamma_g'],self.tab['gamma_i'],self.tab['absMag_i_corr'],self.absMag_i_corr_err,self.tab['gmi_corr'],self.gmi_corr_err,self.tab['logMstarTaylor'],self.logMstarTaylor_err,self.tab['logMstarMcGaugh'],self.logMstarMcGaugh_err,self.sfr22,self.sfr22_err, self.sfrnuv,self.sfrnuv_err, self.sfrnuvir,self.sfrnuvir_err,self.tab['logMH'],self.tab['siglogMH']],\
-                     names=['AGC','gamma_g','gamma_i','absMag_i_corr','absMag_i_corr_err','gmi_corr','gmi_corr_err','logMstarTaylor','logMstarTaylor_err','logMstarMcGaugh','logMstarMcGaugh_err','logSFR22','logSFR22_err', 'logSFRNUV','logSFRNUV_err', 'logSFRNUVIR','logSFRNUVIR_err','logMH','logMH_err'])
+
+        tab2 = Table([self.tab['AGC'],self.tab['gamma_g'],self.tab['gamma_i'],self.tab['absMag_i_corr'],\
+                      self.absMag_i_corr_err,self.tab['gmi_corr'],self.gmi_corr_err,\
+                      self.tab['logMstarTaylor'],self.logMstarTaylor_err,\
+                      self.tab['logMstarMcGaugh'],self.logMstarMcGaugh_err,\
+                      self.gsw_mstar,self.gsw_mstar_err,\
+                      self.sfr22,self.sfr22_err, self.sfrnuvir,self.sfrnuvir_err,\
+                      self.gsw_sfr,self.gsw_sfr_err,\
+                      self.tab['logMH'],self.tab['siglogMH']], \
+                     names=['AGC','gamma_g','gamma_i','absMag_i_corr',\
+                            'absMag_i_corr_err','gmi_corr','gmi_corr_err',\
+                            'logMstarTaylor','logMstarTaylor_err',\
+                            'logMstarMcGaugh','logMstarMcGaugh_err',\
+                            'logMstarGSWLC','logMstarGSWLC_err',\
+                            'logSFR22','logSFR22_err', 'logSFRNUVIR','logSFRNUVIR_err',\
+                            'logSFRGSWLC','logSFRGSWLC_err',\
+                            'logMH','logMH_err'])
+
         tab2.write(tablepath+'durbala2020-table2.'+myDate+'.fits',format='fits',overwrite=True)
+
+        # machine readable tables for AAS journal
+        #tab1.write(latextablepath+'durbala2020-table1.'+myDate+'.csv',format='csv',overwrite=True)        
+        #tab2.write(latextablepath+'durbala2020-table2.'+myDate+'.csv',format='csv',overwrite=True)
+        #ascii.write(tab1,latextablepath+'durbala2020-table1.'+myDate+'.txt',format='cds',overwrite=True)        
+        #ascii.write(tab2,latextablepath+'durbala2020-table2.'+myDate+'.txt',format='cds',overwrite=True)
+
+        # write out full latex tables for AAS journal
+        self.print_table1(nlines=len(self.tab),filename=latextablepath+'durbala2020-table1.'+myDate+'.tex')
+        self.print_table2(nlines=len(self.tab),filename=latextablepath+'durbala2020-table2.'+myDate+'.tex')        
         pass
 if __name__ == '__main__':
     t = latextable()
     t.calculate_errors()
-    t.clean_sfrs()
+    t.clean_arrays()
     t.print_table1()
     t.print_table2()
     t.write_full_tables()

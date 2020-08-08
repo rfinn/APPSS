@@ -192,7 +192,7 @@ class phot_functions():
         # add taylor_mstar column to a100sdss
         # only set values for galaxies with photflag == 1
         flag = self.a100sdss['photFlag_gi'] == 1
-        goodMstar = np.zeros(len(self.a100sdss[self.ref_column]),'f')
+        goodMstar = np.empty(len(self.a100sdss[self.ref_column]),'f')
         goodMstar[flag] = logMstarTaylor[flag]
                              
         c1 = MaskedColumn(goodMstar,name='logMstarTaylor', mask = ~flag)
@@ -969,9 +969,9 @@ class matchfulla100():
         velocity1 = a100['Vhelio']
         velocity2 = self.gsw['Z']*(c.c.to('km/s').value)
         voffset = 300.
-        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['bestRA'],a100['bestDEC'],self.gsw['RA_2'], self.gsw['DEC_2'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
+        self.aindex,self.aflag, self.gindex, self.gflag = join_cats(a100['bestRA'],a100['bestDEC'],self.gsw['RA_1'], self.gsw['DEC_1'],maxoffset=15.,maxveloffset=voffset,  velocity1=velocity1, velocity2=velocity2)
         
-        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_2',DECkey2='DEC_2', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
+        a1002, a100_matchflag, gsw2, gsw_matchflag = make_new_cats(a100, self.gsw,RAkey1='RAdeg_Use',DECkey1='DECdeg_Use',RAkey2='RA_1',DECkey2='DEC_1', velocity1=velocity1, velocity2=velocity2, maxveloffset = voffset,maxoffset=15.)
     
         # print match statistics
         print('FULL CATALOGS, AFTER MATCHING')
@@ -1014,7 +1014,7 @@ if __name__ == '__main__':
     ##### SET UP ARGPARSE
     ###########################
 
-    parser = argparse.ArgumentParser(description ='Program to run simulation for LCS paper 2')
+    parser = argparse.ArgumentParser(description ='Match catalogs for A100-SDSS paper')
     parser.add_argument('--matchoverlap', dest = 'overlap', default = False, action='store_true',help = 'set this to match catalogs in overlap region and write out catalogs for paper analysis.')
     parser.add_argument('--matchfull', dest = 'full', default = False, action='store_true',help = 'set this to match catalogs to the full a100 catalog.  this will produce full-a100-sdss-wise-nsa-gswlcA2.fits, the full a100+sdss catalog with AALLL the other columns that you could ever want.')    
 
@@ -1027,7 +1027,9 @@ if __name__ == '__main__':
 
         ### UDPATING JULY 6, 2020 TO USE CATALOG WITH
         ### SDSS PHOT MATCHED BY OBJID INSTEAD OF BY RA, DEC
-        gswlc_file = tabledir+'/gswlc-A2-sdssphot.fits'
+        #gswlc_file = tabledir+'/gswlc-A2-sdssphot.v2.fits'
+        # using version with vmax < 20,000
+        gswlc_file = tabledir+'/gswlc-A2-sdssphot.v2.vmax20k.fits'        
         # read in sdss phot, line-matched catalogs
         g = gswlc(gswlc_file)
 
@@ -1042,6 +1044,9 @@ if __name__ == '__main__':
         # match to NSA
         #nsacat = homedir+'/research/NSA/nsa_v0_1_2.fits'
         nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'
+        # using vmax < 20k version
+        nsacat = tabledir+'/nsa_v1_0_1_vmax20k.fits'        
+        
         a.match_nsa(nsacat)
         print('################################')
         print('\nMATCHING TO GSWLC-A2 \n')
@@ -1068,6 +1073,8 @@ if __name__ == '__main__':
         afull = matchfulla100(a100sdsscat)
         print('matching full a100 to full NSA')
         nsacat = homedir+'/research/NSA/nsa_v1_0_1.fits'
+        # using vmax < 20k version
+        nsacat = tabledir+'/nsa_v1_0_1_vmax20k.fits'        
         afull.match_nsa(nsacat)
         print('matching full a100 to full GSWLC')        
         gsw = tabledir+'/gswlc-A2-sdssphot-corrected.fits'

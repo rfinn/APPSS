@@ -27,8 +27,8 @@ nsa = nsa[flag]
 nsa.write(outdir+'nsa_v1_0_1_vmax20k.fits',overwrite=True)
 
 
-cat = tabledir+'/gswlc-A2-sdssphot-corrected.fits'
+cat = outdir+'/gswlc-A2-sdssphot.v2.fits'
 gsw = Table.read(cat)
 flag = gsw['Z']*3.e5 < 2.e4
 gsw = gsw[flag]
-gsw.write(outdir+'gswlc-A2-sdssphot-corrected-vmax20k.fits',overwrite=True)
+gsw.write(outdir+'gswlc-A2-sdssphot.v2.vmax20k.fits',overwrite=True)
