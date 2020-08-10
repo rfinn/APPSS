@@ -28,6 +28,7 @@ UPDATES:
 
 import numpy as np
 import os
+import shutil
 from astropy.io import fits, ascii
 from astropy.table import Table
 from datetime import datetime
@@ -236,8 +237,15 @@ class latextable():
         self.absMag_i_corr_err[maskflag] = replacement
         self.tab['gmi_corr'][maskflag] = replacement
         self.gmi_corr_err[maskflag] = replacement
+
+        ## for galaxies with no sdss id
+        ## set id to nan (rather than 999999)
+
+        maskflag = self.tab['objID_1'] == 999999
+        replacement = np.zeros(sum(maskflag))*np.nan
+        self.tab['objID_1'][maskflag] = replacement
         
-    def print_table1(self,nlines=10,filename=None):
+    def print_table1(self,nlines=10,filename=None,papertableflag=True):
         '''write out latex version of table 1 '''
         if filename is None:
             fname=latextablepath+'table1.tex'
@@ -266,7 +274,11 @@ class latextable():
             ## REMOVING WISE ID (JULY 16,2020)
             ##
             #s = '{0:d} & {1:d} & {2:d} & {3:d}& {4:9.6f}&{5:9.5f} & {6:d} & {7:.1f} & {8:.1f} &  {9:.2f} & {10:.2f}& {11:.2f}& {12:.2f}& {13:.2f} &{14:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['unwise_objid'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
-            s = '{0:d} & {1:d} & {2:d} & {3:9.6f}&{4:9.5f} & {5:d} & {6:.1f} & {7:.1f} &  {8:.2f} & {9:.2f}& {10:.2f}& {11:.2f}& {12:.2f} &{13:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])            
+            s = '{0:d} & {1:d} & {2:d} & {3:9.6f}&{4:9.5f} & {5:d} & {6:.1f} & {7:.1f} &  {8:.2f} & {9:.2f}& {10:.2f}& {11:.2f}& {12:.2f} &{13:.2f}\\\\ \n'.format(self.tab['AGC'][i],self.tab['sdssPhotFlag'][i],self.tab['objID_1'][i],self.tab['RAdeg_Use'][i],self.tab['DECdeg_Use'][i],self.tab['Vhelio'][i],self.tab['Dist'][i],self.tab['sigDist'][i],self.tab['extinction_g'][i],self.tab['extinction_i'][i],self.tab['expAB_r'][i],self.expAB_r_err[i],self.tab['cModelMag_i'][i],self.tab['cModelMagErr_i'][i])
+            if papertableflag:
+                # replace nans with \\nodata
+                s=s.replace('nan','\\nodata')
+
             outfile.write(s)
 
         outfile.write('\\bottomrule \n')
@@ -276,7 +288,7 @@ class latextable():
         outfile.write('\\tablecomments{Table 1 is published in its entirety in the machine-readable format.  A portion is shown here for guidance regarding its form and content.}')        
         outfile.write('\\end{table*} \n')
         outfile.close()
-    def print_table2(self,nlines=10,filename=None):
+    def print_table2(self,nlines=10,filename=None,papertableflag=True):
         '''
         write out latex version of table 2
 
@@ -307,7 +319,10 @@ class latextable():
         #outfile.write('AGC & $\\gamma_g$ & $\\sigma_{\\gamma_g}$ & $\\gamma_i$ & $\\sigma_{\\gamma_i}$ & M$_{icorr}$ &	$\\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star, Taylor}$ &	$\\sigma_{log M_{\\star,Taylor}}$  & log M$_{\\star, McGaugh}$ &	$\\sigma_{log M_{\\star, McGaugh}}$ & SFR$_{22}$ & $\\sigma_{log SFR_{22}}$ & ${SFR_{NUV}}$ & $\\sigma_{log SFR_{NUV}}$ & SFR$_{NUVIR}$ & $\\sigma_{log SFR_{UVIR}}$ & M$_{HI}$ & $\\sigma_{M_{HI}}$  \\\\\n')
         outfile.write('AGC & $\\gamma_g$ &  $\\gamma_i$  & M$_{icorr}$ &	$\\rm \\sigma_{M_{icorr}}$ &	(g-i)$_{corr}$	& $\\sigma_{(g-i)_{corr}}$ & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$  & log M$_{\\star}$ &	$\\rm \\sigma_{log M_{\\star}}$ & log M$_{\\star}$& $\\rm \\sigma_{log M_{\\star}}$ & logSFR$_{22}$ & $\\rm \\sigma_{log SFR_{22}}$  & logSFR$\\rm _{NUVcor}$ & $\\rm \\sigma_{log SFR_{NUVcor}}$  & logSFR& $\\rm \\sigma_{logSFR}$ & M$_{HI}$ & $\\rm \\sigma_{M_{HI}}$  \\\\\n')
         outfile.write('&   & &  & &	& & Taylor & Taylor  & McGaugh & McGaugh &  GSWLC &GSWLC& & &  & & GSWLC & GSWLC &  &   \\\\\n')
-        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$& $log(M_\\odot)$& $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$  & $\\rm log(M_\\odot) yr^{-1}$ &  $log(M_\\odot~yr^{-1})$&  $log(M_\\odot~yr^{-1})$ & $log(M_\\odot)$ & $log(M_\\odot)$    \\\\\n')
+        #outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$ & $log(M_\\odot)$& $log(M_\\odot)$& $log(M_\\odot)$ & $\\rm log(M_\\odot~yr^{-1})$ & $\\rm log(M_\\odot yr^{-1})$ & $\\rm log(M_\\odot~yr^{-1})$  & $\\rm log(M_\\odot) yr^{-1}$ &  $log(M_\\odot~yr^{-1})$&  $log(M_\\odot~yr^{-1})$ & $log(M_\\odot)$ & $log(M_\\odot)$    \\\\\n')
+
+        ## removing units from error columns to decrease table width
+        outfile.write(' & mag & mag & mag & mag & mag & mag & $log(M_\\odot)$ &  & $log(M_\\odot)$ & & $log(M_\\odot)$&  & $\\rm log(M_\\odot~yr^{-1})$ &  & $\\rm log(M_\\odot~yr^{-1})$  &  &  $log(M_\\odot~yr^{-1})$&  & $log(M_\\odot)$ &     \\\\\n')        
         outfile.write('(1) & (2) & (3) & (4) & (5) & (6) & (7) & (8) & (9) & (10) & (11) & (12) & (13) & (14) & (15) & (16) & (17) & (18) & (19) &(20) &(21)  \\\\\n')
         outfile.write('\\midrule\n')
         outfile.write('\\hline\n')
@@ -318,6 +333,9 @@ class latextable():
                 print(self.tab['AGC'][i])
             #print(self.tab['AGC'][i],j,self.tab2['AGC'][j])
             s=' {0:d} & {1:.2f} & {2:.2f} & {3:.2f} & {4:.2f}& {5:.2f}  & {6:.2f} & {7:.2f} & {8:.2f} & {9:.2f}& {10:.2f}&{11:.2f} &{12:.2f} &{13:.2f} &{14:.2f} &{15:.2f} &{16:.2f}&{17:.2f}&{18:.2f}&{19:.2f}&{20:.2f}  \\\\ \n'.format(self.tab['AGC'][i],self.tab['gamma_g'][i],self.tab['gamma_i'][i],self.tab['absMag_i_corr'][i],self.absMag_i_corr_err[i],self.tab['gmi_corr'][i],self.gmi_corr_err[i],self.tab['logMstarTaylor'][i],self.logMstarTaylor_err[i],self.tab['logMstarMcGaugh'][i],self.logMstarMcGaugh_err[i],self.gsw_mstar[i],self.gsw_mstar_err[i],self.sfr22[i],self.sfr22_err[i], self.sfrnuvir[i],self.sfrnuvir_err[i],self.gsw_sfr[i],self.gsw_sfr_err[i],self.tab['logMH'][i],self.tab['siglogMH'][i])
+            if papertableflag:
+                # replace nans with \\nodata
+                s=s.replace('nan','\\nodata')
             outfile.write(s)
         outfile.write('\\bottomrule\n')
         outfile.write('\\hline\n')
@@ -386,8 +404,10 @@ class latextable():
         #ascii.write(tab2,latextablepath+'durbala2020-table2.'+myDate+'.txt',format='cds',overwrite=True)
 
         # write out full latex tables for AAS journal
-        self.print_table1(nlines=len(self.tab),filename=latextablepath+'durbala2020-table1.'+myDate+'.tex')
-        self.print_table2(nlines=len(self.tab),filename=latextablepath+'durbala2020-table2.'+myDate+'.tex')        
+        self.print_table1(nlines=len(self.tab),filename=latextablepath+'table1_long.'+myDate+'.tex',papertableflag=False)
+        self.print_table2(nlines=len(self.tab),filename=latextablepath+'table2_long.'+myDate+'.tex',papertableflag=False)        
+        shutil.copy(latextablepath+'table1_long.'+myDate+'.tex',latextablepath+'table1_long.tex')
+        shutil.copy(latextablepath+'table2_long.'+myDate+'.tex',latextablepath+'table2_long.tex')        
         pass
 if __name__ == '__main__':
     t = latextable()
