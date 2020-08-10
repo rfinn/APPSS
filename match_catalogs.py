@@ -69,11 +69,7 @@ from join_catalogs import make_new_cats, join_cats
 import time
 start_time = time.time()
 
-if homedir.find('Users') > -1:
-    # running on macbook
-    tabledir = homedir+'/github/APPSS/tables/'
-else:
-    tabledir = homedir+'/research/APPSS/tables/'
+tabledir = homedir+'/github/a100sdss/tables/'
 
 H0 = 70. # km/s/Mpc
 
