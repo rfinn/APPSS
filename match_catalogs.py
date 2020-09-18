@@ -296,6 +296,7 @@ class a100(phot_functions,wise_functions):
         INPUT:
         - a100_catalog = csv version of a100 catalog
         - sdss_catalog = csv version of Martha's sdss catalog that is line-matched to A100
+        - sdss_catalog2 = different file from Martha that contains the column ipcode
 
         '''
         # read in a100 catalog
@@ -309,11 +310,12 @@ class a100(phot_functions,wise_functions):
         
         # add column ipcode from a100.SDSSparms.191001.csv
         # other columns that should be included
-        a1002 = ascii.read(sdss_catalog2,format='csv')
-        a1002 = Table([a1002['AGC'],a1002['icode'],a1002['pcode'],a1002['ipcode'],a1002['photoID'],a1002['spectID'],a1002['sdss_z']])
-        # match these columns to the a100sdss table
-        self.a100sdss = join(self.a100sdss,a1002,keys='AGC')
-        print('number of rows in a100 table AFTER adding other sdss cols like ipcode = ',len(self.a100sdss))
+        if sdss_catalog2 is not None:
+            a1002 = ascii.read(sdss_catalog2,format='csv')
+            a1002 = Table([a1002['AGC'],a1002['icode'],a1002['pcode'],a1002['ipcode'],a1002['photoID'],a1002['spectID'],a1002['sdss_z']])
+            # match these columns to the a100sdss table
+            self.a100sdss = join(self.a100sdss,a1002,keys='AGC')
+            print('number of rows in a100 table AFTER adding other sdss cols like ipcode = ',len(self.a100sdss))
         
         # now calculate quantities that we use in our paper
         self.ref_column = 'ra'
@@ -544,15 +546,16 @@ class match2a100sdss():
         # assume ABSMAG is in AB mag, with ZP = 3631 Jy
         # *** need to correct ABSMAG to H0=70  ****
         # NSA magnitudes are already corrected for galactic extinction
-        flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
-        dist = 10.*u.pc
-        self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
+        
+        #flux_10pc = 3631.*10**(-1.*(self.a100sdsswisensa['SERSIC_ABSMAG'][:,1])/2.5)*u.Jy
+        #dist = 10.*u.pc
+        #self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
         # calculate using A100 distances
         nuv_mag = np.zeros(len(self.a100sdsswisensa),'f')
         fnu_nuv = np.zeros(len(self.a100sdsswisensa),'f')*u.Jy
         flagNUV = self.a100sdsswisensa['SERSIC_NMGY'][:,1] > 0.
 
-        nuv_mag[flagNUV] = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1][flagNUV])
+        nuv_mag[flagNUV] = 22.5 - 2.5*np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1][flagNUV])
         fnu_nuv[flagNUV] = 3631*10**(-1*nuv_mag[flagNUV]/2.5)*u.Jy
         self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
 
@@ -881,7 +884,7 @@ class matchfulla100():
         dist = 10.*u.pc
         #self.nuLnu_NUV = flux_10pc*4*np.pi*dist**2*freq_NUV
         # calculate using A100 distances
-        nuv_mag = 22.5 - np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
+        nuv_mag = 22.5 - 2.5*np.log10(self.a100sdsswisensa['SERSIC_NMGY'][:,1])
         fnu_nuv = 3631*10**(-1*nuv_mag/2.5)*u.Jy
 
         self.nuLnu_NUV = fnu_nuv*4*np.pi*(distance*u.Mpc)**2*freq_NUV
@@ -979,8 +982,8 @@ class matchfulla100():
         print('number in GSWLC but not in A100 = ',sum(~a100_matchflag & gsw_matchflag))
         # write out temp files
         #print('writing joined tables in two pieces ')
-        a1002[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-left.fits',format='fits',overwrite=True)
-        gsw2[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-right.fits',format='fits',overwrite=True)
+        #a1002[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-left.fits',format='fits',overwrite=True)
+        #gsw2[a100_matchflag].write(tabledir+'/a100-sdss-wise-nsa-gswlcA2-right.fits',format='fits',overwrite=True)
         print('Trying to join a1002 and gsw2')
         # join a100-sdss and nsa into one table
         joined_table = hstack([a1002[a100_matchflag],gsw2[a100_matchflag]])
@@ -991,17 +994,25 @@ class matchfulla100():
         joined_table.add_columns([c2])
         
         # write out joined a100-sdss-gswlc catalog
-        joined_table.write(tabledir+'/full-a100-sdss-wise-nsa-gswlcA2.fits',format='fits',overwrite=True)
+        joined_table.write(tabledir+'/a100-sdss-wise-nsa-gswlcA2.fits',format='fits',overwrite=True)
         
 
 def make_a100sdss():
     a100_file = tabledir+'/a100.HIparms.191001.csv'
+    
     # read in sdss phot, line-matched catalogs
-    sdss_file2 = tabledir+'/a100.SDSSparms.191001.csv'
     sdss_file = tabledir+'/a100.code12.SDSSvalues200409.csv'
-    ## UPDATING TO READ IN COLUMN IPCODE FROM SDSSPARMS SO THAT WE CAN
+    # updating after referee report, Sep 2020
+    # we found a few more sources that were matched to sdss
+    # apparently sdss query times out and returns blanks,
+    # but these actually have sdss matches
+    sdss_file = tabledir+'/a100.SDSSparms.200825.csv'
+
+    ## SENDING IN ANOTHER FILE TO THE A100 CLASS - 
+    ## UPDATING TO READ IN COLUMN IPCODE FROM SDSSPARMS SO THAT WE CAN    
     ## UPDATE THE SDSS FLAG TO INDICATE GALAXIES THAT ARE NOT IN THE SDSS FOOTPRINT
-    a = a100(a100_file,sdss_file,sdss_catalog2=sdss_file2)
+    #sdss_file2 = tabledir+'/a100.SDSSparms.191001.csv'    
+    a = a100(a100_file,sdss_file)#,sdss_catalog2=sdss_file2)
 
 
 if __name__ == '__main__':
