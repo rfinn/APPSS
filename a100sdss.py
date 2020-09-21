@@ -1017,15 +1017,29 @@ class matchedcats():
         # use a100 values for SFR and Mstar
 
 
-        # keep overlap region
+        # get flag for galaxies that fall within overlap region
         keepa100 = self.get_overlap_a100(self.allcats)
+
+        # testing to see if the difference in plots is because I was using the
+        # full a100 rather than the overlap region
+        #keepa100 = np.ones(len(self.allcats),'bool')
         
-        #a100_flag = (self.allcats['w4_mag'] > 0)& (self.allcats['SERSIC_ABSMAG'][:,1] < 0) & (self.allcats.photFlag_gi_2 == 1)
+        # print some statistics
+        flag = keepa100 &(self.allcats['logSFR_NUVIR_KE'] > -7) & (self.allcats.photFlag_gi_1 == 1)            
+        print('number in overlap region with NUVIR SFR = ',sum(flag))
+        
+        flag = keepa100 & (self.allcats['logSFR_NUV_KE'] > -7) & (self.allcats.photFlag_gi_1 == 1)            
+        print('number in overlap region with NUV SFR = ',sum(flag))
+        
+        flag = keepa100 & (self.allcats['logSFR22_KE'] > -7) & (self.allcats.photFlag_gi_1 == 1)            
+        print('number in overlap region with IR SFR = ',sum(flag))
 
         # all must have W4 detection, UV detection, and in overlap region
+        #
+        # this was when we used the McGaugh stellar mass
         a100_flag_allcats = (self.allcats['logMstarMcGaugh'] > 0) & (self.allcats['logSFR_NUVIR_KE'] > -5) & keepa100  & (self.allcats.photFlag_gi_1 == 1)
         if useTaylor:
-            a100_flag_allcats = (self.allcats['logSFR_NUVIR_KE'] > -5) & keepa100  & (self.allcats.photFlag_gi_1 == 1)            
+            a100_flag_allcats = (self.allcats['logSFR_NUVIR_KE'] > -7) & keepa100  & (self.allcats.photFlag_gi_1 == 1)            
         
         flag1 = (self.allcats.a100Flag == 1) & (self.allcats.gswFlag ==1) & a100_flag_allcats 
         print("number of a100 with W4 and NUV detections, in GSWLC overlap = ",sum(a100_flag_allcats))

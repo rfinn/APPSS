@@ -587,7 +587,8 @@ class match2a100sdss():
         # don't need these two lines b/c I set nuLnu22 = 0 if w4_mag = 0
         #self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
         #self.nuLnu_NUV_cor[~flag] = self.nuLnu_NUV[~flag]
-        flag = flag22 | flagNUV
+        flag =  flag22 & flagNUV
+
         self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
         self.nuLnu_NUV_cor_NSA[flag] = self.nuLnu_NUV_NSA[flag] + 2.26*self.nuLnu22_ZDIST[flag]        
         # need relation for calculating SFR from UV only
@@ -924,7 +925,8 @@ class matchfulla100():
         self.nuLnu_NUV_cor_NSA = -99*np.ones(len(self.nuLnu_NUV_NSA))*myunit        
         flag22 = self.a100sdsswisensa['w4_mag'] > 0.
         #self.nuLnu_NUV_cor = self.nuLnu_NUV
-        flag = flag22 | flagNUV        
+        flag =  flag22 & flagNUV
+
         ### adjust nuv luminosity for galaxies with a 22 um detection
         self.nuLnu_NUV_cor[flag] = self.nuLnu_NUV[flag] + 2.26*self.nuLnu22_ZDIST[flag]
         self.nuLnu_NUV_cor_NSA[flag] = self.nuLnu_NUV_NSA[flag] + 2.26*self.nuLnu22_ZDIST[flag]        
