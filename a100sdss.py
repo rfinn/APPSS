@@ -1718,6 +1718,7 @@ class matchedcats():
 class calibsfr():
     def __init__(self):
         # read in catalog that matches a100+NSA+GSWLC
+        #self.cat = fits.getdata('/home/rfinn/research/APPSS/tables/full-a100-sdss-wise-nsa-gswlcA2.fits')        
         self.cat = fits.getdata(tabledir+'/a100-sdss-wise-nsa-gswlcA2.fits')
 
         self.gswflag = self.cat['logMstar'] > 0

@@ -24,6 +24,7 @@ if homedir.find('Users') > -1:
     tabledir = homedir+'/github/APPSS/tables/'
 else:
     tabledir = homedir+'/research/APPSS/tables/'
+    tabledir = homedir+'/github/a100sdss/tables/'    
 
 H0 = 70. # km/s/Mpc
 

@@ -35,6 +35,7 @@ from datetime import datetime
 
 homedir = os.getenv('HOME')
 tablepath = homedir+'/research/APPSS/tables/'
+tablepath = homedir+'/github/a100sdss/tables/'
 latextablepath = homedir+'/research/APPSS/latex-tables/'
 
 
@@ -47,7 +48,8 @@ class latextable():
 
         ### THIS IS THE WRONG TABLE
         ### SHOULD BE USING a100-sdss-wise-nsa-gswlcA2.fits
-        self.tab2 = fits.getdata(tablepath+'full-a100-sdss-wise-nsa-gswlcA2.fits')
+        #self.tab2 = fits.getdata(tablepath+'full-a100-sdss-wise-nsa-gswlcA2.fits')
+        self.tab2 = fits.getdata(tablepath+'a100-sdss-wise-nsa-gswlcA2.fits')        
 
         
         self.tab2 = self.tab2[0:len(self.tab)] # trim table to keep only A100 rows
