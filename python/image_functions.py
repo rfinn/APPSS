@@ -334,7 +334,7 @@ def get_galex_image(ra,dec,imsize):
     return cutout
     
 def display_image(image,percent=99.9,lowrange=False,mask=None,sigclip=True):
-    lowrange=False
+    #lowrange=False
     if sigclip:
         clipped_data = sigma_clip(image,sigma_lower=5,sigma_upper=5)#,grow=10)
     else:
