@@ -70,7 +70,7 @@ if homedir.find('Users') > -1:
     tabledir = homedir+'/github/APPSS/tables/'
 else:
     #tabledir = homedir+'/research/APPSS/tables/'
-    tabledir = homedir+'/github/a100sdss/tables/'    
+    tabledir = homedir+'/github/a100sdss/output-tables/'    
 
 #################################
 ### GET SALIM MAIN SEQUENCE FITS, SALIM+2018 ###
@@ -609,7 +609,8 @@ class matchedcats():
                   xmin=6., xmax=12, ymin=gimin,ymax=gimax,\
                   xlabel='$NSA \ \log_{10}(M_\star (M_\odot))$', ylabel='$ NSA \ (M_g - M_i)$', color2=colorblind1)
         plt.savefig('a100-nsa-color-mass-2.png')
-        plt.savefig('fig6a.pdf')        
+        plt.savefig('fig6a.pdf')
+        plt.savefig('fig6a.png')                
         return flag1
 
     def figb_nsa(self):
@@ -627,7 +628,8 @@ class matchedcats():
                   hexbinflag=False, contourflag1=True,contourflag=False,contour_bins=30,  ncontour_levels=contour_levels,\
                   color2=colorblind2,xmin=6.,xmax=12, ymin=gimin,ymax=gimax)
         plt.savefig('a100-nsa-color-mass-1.png')
-        plt.savefig('fig6b.pdf')                
+        plt.savefig('fig6b.pdf')
+        plt.savefig('fig6b.png')                        
     def figa_gswlc(self):
         # figure a is catalog specific quantities
         
@@ -652,7 +654,8 @@ class matchedcats():
                   xmin=6.,xmax=12,ymin=gimin,ymax=gimax, \
                   xlabel='$GSWLC-2 \ \log_{10}(M_\star (M_\odot))$', ylabel='$  \ (g - i)_{corrected}$', color2=colorblind1)
         plt.savefig('a100-gswlc-color-mass-2.png')
-        plt.savefig('fig8a.pdf')        
+        plt.savefig('fig8a.pdf')
+        plt.savefig('fig8a.png')                
         return flag1
     def figb_gswlc(self):
         # in both
@@ -671,7 +674,8 @@ class matchedcats():
                   hexbinflag=False, alphagray=.08, contourflag1=True,contourflag=False,contour_bins=30, ncontour_levels=contour_levels,\
                   color2=colorblind2,xmin=6.,xmax=12,ymin=gimin,ymax=gimax)
         plt.savefig('a100-gswlc-color-mass-1.png')
-        plt.savefig('fig8b.pdf')                
+        plt.savefig('fig8b.pdf')
+        plt.savefig('fig8b.png')                        
     def figa_s4g(self):
         x = self.a100s4g.mstar
         y = self.a100s4g.bvtc
@@ -697,7 +701,8 @@ class matchedcats():
                   xmin=6,xmax=13,ymin=gimin, ymax=gimax,nhistbin=10,alphagray=.5,\
                   xlabel='$S4G \ \log_{10}(M_\star/M_\odot)$', ylabel='$ Leda \ (B-V)$', color2=colorblind1)
         plt.savefig('a100-s4g-color-mass-1.png')
-        plt.savefig('fig7a.pdf')                
+        plt.savefig('fig7a.pdf')
+        plt.savefig('fig7a.png')                        
     def figb_s4g(self):
         x = self.a100s4g.logMstarTaylor
         y = self.a100s4g.gmi_corr
@@ -718,7 +723,8 @@ class matchedcats():
                   hexbinflag=False,contourflag=True,contour_bins=30, ncontour_levels=contour_levels,\
                   xmin=6.,xmax=12,ymin=gimin,ymax=gimax,nhistbin=20,alphagray=.5,color2=colorblind2)
         plt.savefig('a100-s4g-color-mass-2.png')
-        plt.savefig('fig7b.pdf')                        
+        plt.savefig('fig7b.pdf')
+        plt.savefig('fig7b.png')                                
     def mstar(self):
         # compare different estimates of stellar mass with our estimate from Taylor
 
@@ -873,7 +879,8 @@ class matchedcats():
         
         plt.savefig('sfrmstar-gswlc.pdf')
         plt.savefig('sfrmstar-gswlc.png')
-        plt.savefig('fig9a.pdf')        
+        plt.savefig('fig9a.pdf')
+        plt.savefig('fig9a.png')                
         #return flag1
     def sfrmstar_a100(self,correctMass=False,useTaylor=False):
         # star-forming main sequence
@@ -966,14 +973,16 @@ class matchedcats():
             print('saving taylor files')
             plt.savefig('sfrmstar-a100-Taylor.pdf')
             plt.savefig('sfrmstar-a100-Taylor.png')
-            plt.savefig('fig9b.pdf')                        
+            plt.savefig('fig9b.pdf')
+            plt.savefig('fig9b.png')            
         elif correctMass:
             plt.savefig('sfrmstar-a100-correctedMstar.pdf')
             plt.savefig('sfrmstar-a100-correctedMstar.png')
         else:
             plt.savefig('sfrmstar-a100.pdf')
             plt.savefig('sfrmstar-a100.png')
-        plt.savefig('fig9b.pdf')                        
+        plt.savefig('fig9b.pdf')
+        plt.savefig('fig9b.png')                                
             
         #return flag1
     def ssfrmstar_gswlc(self,masslimit=0,ssfrlimit=-11.5,plotssfrline=False):
@@ -1010,7 +1019,8 @@ class matchedcats():
         # add reference line at log(sSFR) = -10
         plt.savefig('ssfr-mstar-gswlc.pdf')
         plt.savefig('ssfr-mstar-gswlc.png')
-        plt.savefig('fig10a.pdf')        
+        plt.savefig('fig10a.pdf')
+        plt.savefig('fig10a.png')                
         return flag1
     def ssfrmstar_a100(self,ssfrlimit=-11.5,correctMass=False,useTaylor=False):
         # star-forming main sequence
@@ -1123,7 +1133,8 @@ class matchedcats():
         
         plt.savefig(outfile1)
         plt.savefig(outfile2)
-        plt.savefig('fig10b.pdf')        
+        plt.savefig('fig10b.pdf')
+        plt.savefig('fig10b.png')                
         return flag1
     def ssfrmstar_HIfrac_a100(self,ssfrlimit=-11.5,correctMass=False):
         # star-forming main sequence
@@ -1709,9 +1720,15 @@ class matchedcats():
             output1 = 'a100_detection_frac_overlap.png'
             output2 = 'a100_detection_frac_overlap.pdf'        
             output2='fig2b.pdf'
+            
         plt.savefig(output1)
         plt.savefig(output2)
 
+        out1 = output1.split('.pdf')[0]+'.png'
+        out2 = output2.split('.pdf')[0]+'.png'
+        plt.savefig(out1)
+        plt.savefig(out2)        
+        
     def compare_sfr_uvir_mstar(self):
         plt.figure(figsize=(8,6))
         limits=[7.5,11.5,-2,1.2]
@@ -1843,6 +1860,7 @@ class calibsfr():
         plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/wise-mstar-fit2gswlc.png')
         plt.savefig(homedir+'/research/APPSS/plots/fig3.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/fig3.png')        
 
 
     def fit2_mstar_taylor(self):
@@ -2037,7 +2055,8 @@ class calibsfr():
             
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.pdf')
         plt.savefig(homedir+'/research/APPSS/plots/GSWLC-SFR-fit.png')
-        plt.savefig(homedir+'/research/APPSS/plots/fig4.pdf')        
+        plt.savefig(homedir+'/research/APPSS/plots/fig4.pdf')
+        plt.savefig(homedir+'/research/APPSS/plots/fig4.png')                
 def paperplots():
     p.figure1()
 

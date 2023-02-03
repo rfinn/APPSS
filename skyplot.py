@@ -191,4 +191,5 @@ plt.savefig(plotdir+'surveys-skyplot.pdf')
 plt.savefig(plotdir+'fig5.pdf')
 plt.savefig(plotdir+'surveys-skyplot.png')
 plt.savefig(plotdir+'fig5.eps')
+plt.savefig(plotdir+'fig5.png')
         

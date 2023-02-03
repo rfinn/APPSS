@@ -23,6 +23,7 @@ UPDATES:
 * 2020-08-06
   - making empty array elements nan instead of, e.g. -99
 
+* 2021-08-27
 '''
 
 
@@ -32,10 +33,12 @@ import shutil
 from astropy.io import fits, ascii
 from astropy.table import Table
 from datetime import datetime
+from astropy.cosmology import WMAP9 as cosmo
+
 
 homedir = os.getenv('HOME')
 tablepath = homedir+'/research/APPSS/tables/'
-tablepath = homedir+'/github/a100sdss/tables/'
+tablepath = homedir+'/github/a100sdss/output-tables/'
 latextablepath = homedir+'/research/APPSS/latex-tables/'
 
 
@@ -246,7 +249,156 @@ class latextable():
         maskflag = self.tab['objID_1'] == 999999
         replacement = np.zeros(sum(maskflag))*np.nan
         self.tab['objID_1'][maskflag] = replacement
+
+    def get_HIdef(self):
+        ''' calculate HIdef and write out table '''
+
+        # use scaling relation from
+        ## https://www.aanda.org/articles/aa/full_html/2013/12/aa21326-13/T1.html
+        ## M. Argudo-Fernández1, 2013, A&A, 560, A9
+        ## Answers vary between 1.23 and 1.58 depending on sample
+        ##
+        ## 1.58 for isolated galaxies
+        ##
+
+        radius_scalefactor = 1.4
+        self.radius = self.tab['petroR90_r']*radius_scalefactor
         
+        '''
+        use relationship from Boselli+Gavazzi 2009
+        https://www.aanda.org/articles/aa/full_html/2009/46/aa12658-09/aa12658-09.html
+
+        HI def = log MHI_ref - log MHI_obs
+        h^2 MHI_ref = c + d log(hdiam)^2
+
+        Type 	c 	d 	Ref.
+        E-S0a 	6.88 	0.89 	HG84
+        Sa-Sab 	7.75 	0.59 	S96
+        Sb 	7.82 	0.62 	S96
+        Sbc 	7.84 	0.61 	S96
+        Sc 	7.16 	0.87 	S96
+        Scd-Im-BCD 	7.45 	0.70 	G10 
+
+        email from Martha:
+
+        First, Carmen Toribio looked at a subset of isolated galaxies in
+        a40 to derive scaling relations
+        https://ui.adsabs.harvard.edu/abs/2011ApJ...732...93T
+        https://ui.adsabs.harvard.edu/abs/2015ApJ...802...72T/     (erratum to
+        above)
+        
+        More recently, Mike led an effort to establish relations for the AMIGA
+        sample (of isolated galaxies):
+        https://ui.adsabs.harvard.edu/abs/2018A%26A...609A..17J
+        
+        They use isophotal radii, and refer to a discussion of deriving D25 from
+        SDSS in the
+        earlier paper by Argudo-Fernandez 2013:
+        https://ui.adsabs.harvard.edu/abs/2013A%26A...560A...9A
+        
+        I think there are some others too, but these are what I am most familiar
+        with.
+        
+        Martha
+        
+        '''
+        # use distance from A100 catalog
+        distance = self.tab['Dist']
+
+        # use HI mass from A100 catalog
+        self.logMHI = self.tab['logMH']
+        
+        # calculate HI deficiency using Toribio et al 2011 results
+        # their relation is
+        # log(M_HI/Msun) = 8.72 + 1.25 log(D_25,r/kpc)
+        # and
+        # log D_25 = log D_25(obs) + beta log(b/a), where beta = 0.35 in r-band
+        # NOTE: SDSS isophotal radii are given in pixels!!!!
+        # convert from arcsec to kpc with self.AngDistance (which is in units of kpc/arcsec)
+        # multiply by 2 to convert from radius to diameter
+        # multiply by sdss pixel scale (0.39) b/c isophotal radii are given in pixels
+
+        # use the radius measurements that I collated for John's group catalog
+        # these should approximate D25
+        # only calculate for galaxies with radiusflag = True
+
+        # returns DA in Mpc/radians
+        #DA=cosmo.angular_diameter_distance(self.tab['Vhelio']/3.e5)
+
+        # try using distance in A100
+        vr = self.tab['Dist']*cosmo.H0
+        # returns DA in Mpc/radians
+        DA = cosmo.angular_diameter_distance(vr/3.e5)
+        D25obskpc=2.*self.radius/206264*DA.to('kpc')
+
+        
+        # apply correction from toribio et al 2011 
+        self.logD25kpc=np.log10(D25obskpc.value) + 0.35*np.log10(self.tab['expAB_r'])
+
+        # use toribio et al relation to predict the expected HI mass,
+        # including factor of 2 correction
+        logHImassExpected = 8.72 + 1.25*(self.logD25kpc-np.log10(2.))
+        
+        # use jones+2018, A&A, 609, A17 (AMIGA sample
+        # relation to predict the expected HI mass
+        # using Maximum Liklihood Estimator for Detections
+        logHImassExpected_jones = 7.32 + 0.86*(2*self.logD25kpc)
+        # relation for ALL galaxies is similar
+        # intrinsic scatter is 0.21
+        #
+        # fits by morphological type
+        # <3 	1.04 ± 0.21 	6.44 ± 0.59 	0.27 ± 0.08 	0.67
+        # 3–5 	0.93 ± 0.06 	7.14 ± 0.18 	0.16 ± 0.02 	0.74
+        # >5 	0.81 ± 0.09 	7.53 ± 0.24 	0.17 ± 0.03 	0.73
+
+        # calculate deficiency as log expected - log observed
+        self.HIdef = np.empty(len(self.tab),'f')
+        self.HIdef_jones = np.empty(len(self.tab),'f')
+
+        # I don't have Ttype for the full A100 catalog, so skipping this measure
+        # of HI def
+        self.HIdef_jones_bytype = np.empty(len(self.tab),'f')        
+
+        # report values if the galaxy has a valid value for petroR90_r
+        # about 4 galaxies do not
+        flag = self.tab['petroR90_r'] > -1.
+        self.HIdef[flag] = logHImassExpected[flag] - self.logMHI[flag]
+        self.HIdef_jones[flag] = logHImassExpected_jones[flag] - self.logMHI[flag]        
+        self.HIdef_flag = flag
+
+        #flag = ~np.isnan(self.cat['t']) & (self.cat['t'] < 3)
+        #self.HIdef_jones_bytype[flag] = 6.44 + 1.04*(2*logD25kpc[flag])- self.logMHI[flag]        
+        #flag = ~np.isnan(self.cat['t']) & (self.cat['t'] > 5)
+        #self.HIdef_jones_bytype[flag] = 7.53 + .81*(2*logD25kpc[flag]) - self.logMHI[flag]        
+        #flag = ~np.isnan(self.cat['t']) & (self.cat['t'] <= 5) & (self.cat['t'] >= 3)
+        #self.HIdef_jones_bytype[flag] = 7.14 + .93*(2*logD25kpc[flag]) - self.logMHI[flag]        
+
+        # calculate HI def by type for hyperleda galaxies with Ttype
+        
+        # boselli & gavazzi prescription
+        # use value for Sb
+        c = 7.82
+        d = 0.62
+        logh2MHIref = (c + 2*d*self.logD25kpc)
+        self.HIdef_bos = logh2MHIref - self.logMHI
+
+        # write out HI def table
+
+        colnames = ['AGC','RA','DEC',\
+                    'petroR90_r','D25_arcsec','D25_kpc',\
+                    'logMH','logMH_err','HIdef_Toribio','HIdef_Jones','HIdef_Boselli','HIdef_flag']
+        columns = [self.tab['AGC'],self.tab['RAdeg_Use'],self.tab['DECdeg_Use'],\
+                   self.tab['petroR90_r'],self.radius,self.logD25kpc,\
+                   self.tab['logMH'],self.tab['siglogMH'],self.HIdef,self.HIdef_jones,self.HIdef_bos,flag]
+        #for i,c in enumerate(columns):
+        #    print(len(c))
+        HIdef_table = Table(columns,names=colnames)
+        dateTimeObj = datetime.now()        
+        myDate = dateTimeObj.strftime("%d-%b-%Y")
+        fname = homedir+'/research/APPSS/tables/A100-HIdef-'+myDate+'.fits'
+        HIdef_table.write(fname,format='fits',overwrite=True)
+
+        pass
     def print_table1(self,nlines=10,filename=None,papertableflag=True):
         '''write out latex version of table 1 '''
         if filename is None:
@@ -413,8 +565,8 @@ class latextable():
         pass
 if __name__ == '__main__':
     t = latextable()
-    t.calculate_errors()
-    t.clean_arrays()
-    t.print_table1()
-    t.print_table2()
-    t.write_full_tables()
+    #t.calculate_errors()
+    #t.clean_arrays()
+    #t.print_table1()
+    #t.print_table2()
+    #t.write_full_tables()
