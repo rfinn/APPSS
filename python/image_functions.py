@@ -61,7 +61,7 @@ def get_legacy_images(ra,dec,galid='VFID0',pixscale=1,imsize='60',band='g',makep
     fits_name = rootname+'-'+band+'.fits'
 
 
-    print('legacy imsize = ',imsize)
+    #print('legacy imsize = ',imsize)
     
     # check if images already exist
     # if not download images
@@ -74,6 +74,7 @@ def get_legacy_images(ra,dec,galid='VFID0',pixscale=1,imsize='60',band='g',makep
     if not(os.path.exists(fits_name)):
         print('retrieving ',fits_name)
         url='http://legacysurvey.org/viewer/cutout.fits?ra='+str(ra)+'&dec='+str(dec)+'&layer=dr8&size='+str(imsize)+'&pixscale='+str(pixscale)+'&bands='+band
+        print(url)
         urlretrieve(url, fits_name)
     else:
         print('previously downloaded ',fits_name)
@@ -150,7 +151,7 @@ def get_unwise_image(ra,dec,galid='VFID0',pixscale=2.75,imsize='60',bands='1234'
         tartemp = tarfile.open(wisetar,mode='r:gz') #mode='r:gz'
         wnames = tartemp.getnames()
 
-        print(wnames)
+        #print(wnames)
         # check for multiple pointings - means galaxy is split between images
         multiframe = False
         if len(wnames) > 4*len(bands):
@@ -347,3 +348,114 @@ def display_image(image,percent=99.9,lowrange=False,mask=None,sigclip=True):
     plt.imshow(image, norm=norm,cmap='gray_r',origin='lower')
     #v1,v2=scoreatpercentile(image,[.5,99.5])            
     #plt.imshow(image, cmap='gray_r',vmin=v1,vmax=v2,origin='lower')    
+def display_unwise(ra,dec,galname,imsize_arcsec=60):
+    # get unwise images
+
+    imsize_pixels_legacy = round(imsize_arcsec/LEGACY_PIXSCALE)
+    imsize_pixels_unwise = round(imsize_arcsec/UNWISE_PIXSCALE)
+    
+    t = get_unwise_image(ra,dec,galid=galname,makeplots=False,imsize=str(imsize_pixels_unwise))
+    imagefiles = t[0]
+    noisefiles = t[1]
+    imagefiles.sort()
+    noisefiles.sort()
+    plt.figure(figsize=(12,4))
+
+    # concatinate lists
+
+    # plot WISE images
+    imnames = [galid+' W1','W2','W3','W4']
+    for i,im in enumerate(imagefiles):
+        plt.subplot(2,4,i+1)
+        data = fits.getdata(im)
+        display_image(data,percent=92)
+        plt.title(imnames[i],fontsize=14)    
+    
+def display_legacy_unwise(ra,dec,galname,imsize_arcsec=60,plotdir=None):
+    """
+
+    download and display legacy and unwise images
+
+    INPUT:
+    ra in deg
+    dec in deg
+    galid = galaxy name, this will be prefix of output images
+    imsize = length/width of image in arcsec
+
+    """
+
+    if plotdir is None:
+        plotdir = 'plots/'
+        
+    if not os.path.exists(plotdir):
+        os.mkdir(plotdir)
+    
+    imsize_pixels_legacy = round(imsize_arcsec/LEGACY_PIXSCALE)
+    imsize_pixels_unwise = round(imsize_arcsec/UNWISE_PIXSCALE)
+
+    # get unwise images
+    t = get_unwise_image(ra,dec,galid=galname,makeplots=False,imsize=str(imsize_pixels_unwise))
+    imagefiles = t[0]
+    noisefiles = t[1]
+    imagefiles.sort()
+    noisefiles.sort()
+
+    # get legacy images
+
+    bands = ['g','r','z']
+    legimfiles = []
+    plot_legacy = True
+    for i,b in enumerate(bands):
+        if i == 0:
+            # only need to download this once
+            getjpg = True
+        else:
+            getjpg = False
+        t = get_legacy_images(ra,dec,galid=galname,band=b,makeplots=False,imsize=str(imsize_pixels_legacy))
+        if t is None:
+            print(f"WARNING: GALAXY {galname} IS OUTSIDE LEGACY FOOTPRINT")
+            plot_legacy = False
+            break
+        print('return from get_legacy_images = ',t,b,galname)
+        if i == 0:
+            legimfiles.append(t[0])
+            legjpgfile = t[1]
+        else:
+            legimfiles.append(t[0])
+
+    if plot_legacy:
+        # make a plot
+        plt.figure(figsize=(12,6.5))
+        plt.gca().set_facecolor("white")
+        # concatinate lists
+        legacy_images = [legjpgfile]+legimfiles
+        imnames = [galname+' grz','g','r','z']
+        # plot legacy images in top row
+        for i,im in enumerate(legacy_images):
+            plt.subplot(2,4,i+1)
+            if i == 0:
+                # display jpg
+                t = Image.open(im)
+                plt.imshow(t,origin='upper')
+            else:
+                data = fits.getdata(im)
+                display_image(data,lowrange=False,percent=95)
+        
+            plt.title(imnames[i],fontsize=14)
+        Noffset = 4
+        Nrow=2
+        
+    else:
+        plt.figure(figsize=(12,3))
+        plt.gca().set_facecolor("white")        
+        Noffset = 0
+        Nrow=1    
+    # plot WISE images
+    imnames = [galname+' W1','W2','W3','W4']
+    for i,im in enumerate(imagefiles):
+        plt.subplot(Nrow,4,Noffset+i+1)
+        data = fits.getdata(im)
+        display_image(data,percent=92)
+        plt.title(imnames[i],fontsize=14)
+    plt.savefig(plotdir+galname+"cutouts.png",transparent=False)
+    plt.close()
