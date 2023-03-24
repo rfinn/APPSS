@@ -364,7 +364,7 @@ def display_unwise(ra,dec,galname,imsize_arcsec=60):
     # concatinate lists
 
     # plot WISE images
-    imnames = [galid+' W1','W2','W3','W4']
+    imnames = [galname+' W1','W2','W3','W4']
     for i,im in enumerate(imagefiles):
         plt.subplot(2,4,i+1)
         data = fits.getdata(im)
